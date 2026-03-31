@@ -40,10 +40,10 @@ echo :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	SET FILE_NORMAL=vpnroutes_NORMALIZE.cmd
 	SET FILE_DEL=vpnroutes_DELETE.cmd
 	SET FILE_MAPSUPP=vpnroutes_MAPSUPP.cmd
-	SET FILE_CHECK_COPY_TILL=112
-	SET FILE_NORMAL_COPY_TILL=74	
-	SET FILE_DEL_COPY_TILL=74
-	SET FILE_MAPSUPP_COPY_TILL=74
+	SET FILE_CHECK_COPY_TILL=121
+	SET FILE_NORMAL_COPY_TILL=83	
+	SET FILE_DEL_COPY_TILL=83
+	SET FILE_MAPSUPP_COPY_TILL=83
 	
 	:: PARAMETERS ::
 	SET CHECK=ya.ru
@@ -64,6 +64,15 @@ echo :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	:: TELEGRAM IPs ::
 	SET TELEGRAM=149.154.160.0/255.255.240.0,149.154.176.0/255.255.240.0,91.108.4.0/255.255.252.0,91.108.8.0/255.255.252.0,91.108.12.0/255.255.252.0,91.108.16.0/255.255.252.0,91.108.56.0/255.255.252.0,5.28.16.0/255.255.248.0,5.28.24.0/255.255.248.0,109.239.140.0/255.255.255.0
 
+	:: 3PROXY ::
+	SET TPRXYPATH=%~dp0\3proxy-0.9.5-x64-dkxce\bin64
+	SET TPRXYREWRITE=ENABLED
+	SET TPRXYRESTART=ENABLED
+	SET TRPXYEXE=%TPRXYPATH%\3proxy.exe
+	SET TRPXYCFG=%TPRXYPATH%\3proxy.cfg
+	SET TRPXY_ADMIN_PASS=4S9eBHkphYaMFPr38
+	SET TRPXY_DKXCE_PASS=zCEuBnhC6Ss83gG0x
+	SET DNWLDVPNGATECSV=ENABLED
 
 :begin
 color %DEFCOLOR%
@@ -229,6 +238,95 @@ color %DEFCOLOR%
 		
 	)
 	
+:save_3proxy_congif
+
+	:: SAVE 3PROXY CONFIG ::	
+	if "%TPRXYREWRITE%"=="ENABLED" (
+	
+		echo .
+		echo -- SWITCHING TO CHANGE 3PROXY CONFIGURATION --
+		echo .
+		ping 127.0.0.1 -n 3 >nul
+		
+		for /f "tokens=4" %%a in ('route print 0.0.0.0 ^| find "10.211." ^| findstr /r "[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*"') do (
+			set "externalip=%%a"		
+		)
+		
+		if not "%externalip%"=="" (
+		
+			echo .
+			echo -- WRITING 3PROXY CONFIGURATION TO IP %externalip% --
+			echo .
+			if exist "%TRPXYCFG%" (
+				del /q /f "%TRPXYCFG%"
+			)		
+
+			echo # >> %TRPXYCFG%
+			echo # DNS IP ADDRESSES # >> %TRPXYCFG%
+			echo #nserver 127.0.0.1 >> %TRPXYCFG%
+			echo #timeouts 1 5 30 60 180 1800 15 60 >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo # USER LISTS # >> %TRPXYCFG%
+			echo users dkxce:CL:%TRPXY_DKXCE_PASS% >> %TRPXYCFG%
+			echo users Administrator:CL:%TRPXY_ADMIN_PASS% >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo # AUTHORIZATION # >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo auth strong >> %TRPXYCFG%
+			echo allow dkxce >> %TRPXYCFG%
+			echo allow Administrator 192.168.177.0/24 * 80 * 1-7 00:00:00-23:59:59 >> %TRPXYCFG%
+			echo deny * * * >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo # PORTS # >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo internal 0.0.0.0 >> %TRPXYCFG%
+			echo external %externalip% >> %TRPXYCFG%
+			echo socks -p1088 -i0.0.0.0 -a >> %TRPXYCFG%
+			echo admin -p10088 >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo # LOG # >> %TRPXYCFG%
+			echo # >> %TRPXYCFG%
+			echo log >> %TRPXYCFG%
+			echo log %~dp0\3proxy-0.9.5-x64-dkxce\logs\3proxy.log D >> %TRPXYCFG%
+			echo rotate 7 >> %TRPXYCFG%
+			
+			if "%TPRXYRESTART%"=="ENABLED" (
+			
+				echo .
+				echo -- SWITCHING RESTART 3PROXY --
+				echo .				
+				ping 127.0.0.1 -n 3 >nul
+				
+				net stop 3proxy | findstr "3proxy"
+				net start 3proxy | findstr "3proxy"
+				
+				echo .
+				echo -- TESTING 3PROXY --
+				echo .
+				echo -- EXTERNAL IP ADDRESS: --
+				curl -x socks5://127.0.0.1:1088 -U dkxce:%TRPXY_DKXCE_PASS% --connect-timeout 15 https://api.ipify.org/?format=text
+				echo .
+				curl -x socks5://127.0.0.1:1088 -U dkxce:%TRPXY_DKXCE_PASS% --connect-timeout 15 https://api.myip.com
+				echo .
+				
+				if "%DNWLDVPNGATECSV%"=="ENABLED" (
+				    if exist "%~dp0\vpnroutes_vpngate.txt" (
+						del /q /f "%~dp0\vpnroutes_vpngate.txt"
+					)
+					echo .
+					echo -- DOWNLOADING OpenVPNGate Servers CSV File --
+					echo .
+					curl -x socks5://127.0.0.1:1088 -U dkxce:%TRPXY_DKXCE_PASS% --connect-timeout 90 -o %~dp0\vpnroutes_vpngate.txt https://www.vpngate.net/api/iphone/
+					echo .
+					%~dp0\NetRouteStabilizer.exe /stripcsv
+				)
+				
+			)
+			
+		)
+		
+	)
 	
 :ready
 :save_check_routes_file
@@ -303,6 +401,8 @@ color %DEFCOLOR%
 		echo echo ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: >> %FILE_MAPSUPP%
 		echo ping 127.0.0.1 -n %SLEEP% >nul >> %FILE_MAPSUPP%
 	)
+	
+:final
 	
 	echo.
 	echo !!! READY, SLEEP %SLEEP% SECONDS !!!
