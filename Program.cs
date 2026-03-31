@@ -7,6 +7,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Text.RegularExpressions;
+using System.Collections.Generic;
+using System.Net.Sockets;
 
 internal class Program
 {
@@ -24,13 +26,22 @@ internal class Program
     static void Main(string[] args)
     {
         bool has_stripcsv = false;
+        bool has_detectip = false;
         for (int i = 0; i < args.Length; i++)
-            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase) && (has_stripcsv = true))
-                break;
+        {
+            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase) && (has_stripcsv = true)) break;
+            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase) && (has_detectip = true)) break;
+        };
 
         if (has_stripcsv)
         {            
             ParseVPNGateCSV();
+            return;
+        };
+
+        if (has_detectip)
+        {
+            GetIpAddressesByPrefix("10.211.");
             return;
         };
 
@@ -333,5 +344,31 @@ internal class Program
         {
             return (false, false, false, 0);
         };
+    }
+
+    private static string GetIpAddressesByPrefix(string prefix)
+    {
+        List<string> result = new List<string>();
+
+        foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (ni.OperationalStatus == OperationalStatus.Up)
+            {
+                var ipProperties = ni.GetIPProperties();
+
+                foreach (UnicastIPAddressInformation ip in ipProperties.UnicastAddresses)
+                {
+                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork &&
+                        ip.Address.ToString().StartsWith(prefix))
+                    {
+                        result.Add(ip.Address.ToString());                        
+                        Console.WriteLine(ip.Address.ToString());
+                        return ip.Address.ToString();
+                    };
+                };
+            };
+        };
+        Console.WriteLine("0.0.0.0");
+        return null;
     }
 }
