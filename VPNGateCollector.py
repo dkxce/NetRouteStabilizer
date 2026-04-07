@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import schedule # pip install schedule
 
-# === НАСТРОЙКИ ===
+# === НАСТРОЙКИ === # https://ifconfig.co/ #
 OUTPUT_FILE = "vpngate_full_list.json"
 
 MIRRORS = [
@@ -31,6 +31,7 @@ MIRRORS = [
     "http://220.57.84.30:62713/",
     "http://112.165.112.49:52818/",
     "http://124.18.179.190:39566/",
+    "http://kd036012175158.ppp-bb.dion.ne.jp:64678/",
 ]
 
 PROXY_BASE = None
