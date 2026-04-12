@@ -1,0 +1,19 @@
+{
+    "LogDateTimeFormat":    "dd.MM HH:mm:ss",   
+	
+	"VPNServersFile":       "vpngate_full_list.json",
+	"VPNServersFind":       "opengw.net",
+    "VPNAdapterName":       "VPN2",
+    "VPNAccountFormat":     "%CountryShort% %HostName%.opengw.net",
+    "VPNServerFormat":      "%IP%/tcp:%TcpPort%",
+    "VPNServerPing":        true,
+	
+	"MaxExistingAttempts":  5,
+    "MaxNewServerAttempts": 999,
+	
+    "ConnectDelay":         15,
+    "DisconnectDelay":      3,
+    "DetectDelay":          5,
+	
+    "Countries":["AE","AM","AR","AT","AU","AZ","BD","BE","BG","BR","BY","CA","CL","CN","CO","CR","CZ","DE","EE","EG","ES","EU","FI","FR","GB","GD","HK","HU","ID","IN","IT","JP","KG","KH","KR","KZ","LA","LC","LT","LV","MA","MD","MM","MP","MX","MY","NL","NO","NZ","PA","PE","PH","PK","PL","PT","PY","QA","RO","RS","SA","SE","SI","SK","TH","TJ","TR","TT","TW","US","UY","UZ","VE","VN","ZA"]
+}
