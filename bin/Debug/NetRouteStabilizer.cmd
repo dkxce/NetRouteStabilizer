@@ -40,7 +40,7 @@ echo :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	SET FILE_NORMAL=vpnroutes_NORMALIZE.cmd
 	SET FILE_DEL=vpnroutes_DELETE.cmd
 	SET FILE_MAPSUPP=vpnroutes_MAPSUPP.cmd
-	SET FILE_CHECK_COPY_TILL=121
+	SET FILE_CHECK_COPY_TILL=125
 	SET FILE_NORMAL_COPY_TILL=83	
 	SET FILE_DEL_COPY_TILL=83
 	SET FILE_MAPSUPP_COPY_TILL=83
@@ -72,7 +72,7 @@ echo :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	SET TRPXYCFG=%TPRXYPATH%\3proxy.cfg
 	SET TRPXY_ADMIN_PASS=4S9eBHkphYaMFPr38
 	SET TRPXY_DKXCE_PASS=zCEuBnhC6Ss83gG0x
-	SET DNWLDVPNGATECSV=ENABLED
+	SET DNWLDVPNGATECSV=DISABLED
 
 :begin
 color %DEFCOLOR%
@@ -113,7 +113,11 @@ color %DEFCOLOR%
 	)
 	color %FLDCOLOR%
 	echo -- SoftEtherVPN ROUTE NOT FOUND --
-	goto ready
+	:: DETECTING CONNECTED VPNGATE SERVER ::
+    call %~dp0\NetRouteStabilizer.exe /rotate
+    rem call %~dp0\NetRouteStabilizerTestVPNAlive.cmd
+	rem goto ready
+	goto proximize
 	
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -308,6 +312,10 @@ color %DEFCOLOR%
 				echo log >> %TRPXYCFG%
 				echo log %~dp0\3proxy-0.9.5-x64-dkxce\logs\3proxy.log D >> %TRPXYCFG%
 				echo rotate 7 >> %TRPXYCFG%
+				echo # >> %TRPXYCFG%
+				echo # COUNTER # >> %TRPXYCFG%
+				echo # >> %TRPXYCFG%
+				echo counter %~dp0\3proxy-0.9.5-x64-dkxce\logs\counter.3cf >> %TRPXYCFG%
 				
 				if exist "%TRPXYCFG%" (
 					echo -- CONFIGURATION SUCCESSFULLY WRITED --
@@ -431,10 +439,11 @@ color %DEFCOLOR%
 	
 :final
 	
-	echo.
-	echo !!! READY, SLEEP %SLEEP% SECONDS !!!
+	echo .
 	echo :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	echo *** %date%%time% *** READY, SLEEP %SLEEP% SECONDS ***
 	echo :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	ping 127.0.0.1 -n %SLEEP% >nul
+	rem timeout /t %SLEEP%
 
 :end

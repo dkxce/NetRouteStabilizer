@@ -9,6 +9,7 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using NetRouteStabilizer;
 
 internal class Program
 {
@@ -27,23 +28,20 @@ internal class Program
     {
         bool has_stripcsv = false;
         bool has_detectip = false;
+        bool has_rotation = false;
+        bool has_help = false;
         for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase) && (has_stripcsv = true)) break;
             if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase) && (has_detectip = true)) break;
+            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase) && (has_rotation = true)) break;
+            if (string.Equals(args[i], "/help", StringComparison.OrdinalIgnoreCase) && (has_help = true)) break;
         };
 
-        if (has_stripcsv)
-        {            
-            ParseVPNGateCSV();
-            return;
-        };
-
-        if (has_detectip)
-        {
-            GetIpAddressesByPrefix("10.211.");
-            return;
-        };
+        if (has_stripcsv) { ParseVPNGateCSV(); return; };
+        if (has_detectip) { GetIpAddressesByPrefix("10.211."); return; };
+        if (has_rotation) { VPNGateRotator.ProcessRotate(); return; };
+        if (has_help) { Console.WriteLine("Args: none | /stripcsv | /detectip | /rotate"); return; };
 
         Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
         Console.WriteLine("=== Мониторинг изменений таблицы маршрутизации запущен ===");
