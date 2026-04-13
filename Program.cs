@@ -26,23 +26,19 @@ internal class Program
 
     static void Main(string[] args)
     {
-        bool has_stripcsv = false;
-        bool has_detectip = false;
-        bool has_rotation = false;
-        bool has_help = false;
         for (int i = 0; i < args.Length; i++)
         {
-            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase) && (has_stripcsv = true)) break;
-            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase) && (has_detectip = true)) break;
-            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase) && (has_rotation = true)) break;
-            if (string.Equals(args[i], "/help", StringComparison.OrdinalIgnoreCase) && (has_help = true)) break;
+            if (string.Equals(args[i], "/monitor", StringComparison.OrdinalIgnoreCase)) { Monitor(); return; };
+            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase)) { ParseVPNGateCSV(); return; };
+            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase)) { GetIpAddressesByPrefix("10.211."); return; };
+            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ProcessRotate(); return; };
+            if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ShrinkJSON(); return; };
         };
+        Help();
+    }
 
-        if (has_stripcsv) { ParseVPNGateCSV(); return; };
-        if (has_detectip) { GetIpAddressesByPrefix("10.211."); return; };
-        if (has_rotation) { VPNGateRotator.ProcessRotate(); return; };
-        if (has_help) { Console.WriteLine("Args: none | /stripcsv | /detectip | /rotate"); return; };
-
+    private static void Monitor()
+    {         
         Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
         Console.WriteLine("=== Мониторинг изменений таблицы маршрутизации запущен ===");
         Console.WriteLine("=== Приложение автоматически запустит скрипт NetRouteStabilizer.cmd при изменении маршрутов. ===");
@@ -65,6 +61,24 @@ internal class Program
             };
             Thread.Sleep(1000);
         };
+    }
+
+    private static void Help()
+    {
+        Console.WriteLine("==================================================================");
+        Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
+        Console.WriteLine("------------------------------------------------------------------");
+        Console.WriteLine("--- Args:                                                      ---");
+        Console.WriteLine("---       /monitor  - Start MonitoringChangesin IP Route Table ---");
+        Console.WriteLine("---       /stripcsv - Shring VPNGate CSV 2 No base64cfg        ---");
+        Console.WriteLine("---       /detectip - Detect IP Address of VPNGate Adapter     ---");
+        Console.WriteLine("---       /rotate         - Automatic RotateVPNGate Servers    ---");
+        Console.WriteLine("---       /shrinkvpnjson  - Shring VPNGate JSON 2 No base64cfg ---");
+        Console.WriteLine("---                                                            ---");
+        Console.WriteLine("------------------------------------------------------------------");
+        Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
+        Console.WriteLine("==================================================================");
+        System.Threading.Thread.Sleep(3000);
     }
 
     private static void GetRouteTableChanges()
@@ -92,7 +106,7 @@ internal class Program
         {
             watcher.EventArrived += (sender, e) =>
             {
-                if (isLaunchedNorm) return;               
+                if (isLaunchedNorm) return; // изменения инициированы текущей программой         
                 Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Обнаружено изменение маршрута! Ждем {delay / 1000} секунд.");
                 lastUpdate = DateTime.UtcNow;
             };
@@ -112,6 +126,8 @@ internal class Program
         }
     }
 
+
+    #region RUN
     private static void RunCmdScript()
     {
         Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Запуск скрипта NetRouteStabilizer.cmd ...");
@@ -208,17 +224,9 @@ internal class Program
         return process.ExitCode == 0;
     }
 
-    private static void PingHost(string host)
-    {
-        try
-        {
-            Ping ping = new Ping();
-            PingReply reply = ping.Send(host, 3000);
-            if (reply.Status == IPStatus.Success) Console.WriteLine($"Ping OK: {host} (TTL={reply.Options.Ttl})");
-            else Console.WriteLine($"Ping Fail: {host} ({reply.Status})");
-        }
-        catch {};
-    }
+    #endregion RUN
+    
+    #region CSV
 
     private static void ParseVPNGateCSV()
     {
@@ -344,22 +352,33 @@ internal class Program
         };
     }
 
+    #endregion CSV
+
+    #region NetTools
+
+    private static void PingHost(string host, int timeout = 3000)
+    {
+        try
+        {
+            Ping ping = new Ping();
+            PingReply reply = ping.Send(host, timeout);
+            if (reply.Status == IPStatus.Success) Console.WriteLine($"Ping OK: {host} (TTL={reply.Options.Ttl})");
+            else Console.WriteLine($"Ping Fail: {host} ({reply.Status})");
+        }
+        catch { };
+    }
+
     private static string GetIpAddressesByPrefix(string prefix)
     {
-        List<string> result = new List<string>();
-
         foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (ni.OperationalStatus == OperationalStatus.Up)
             {
-                var ipProperties = ni.GetIPProperties();
-
+                IPInterfaceProperties ipProperties = ni.GetIPProperties();
                 foreach (UnicastIPAddressInformation ip in ipProperties.UnicastAddresses)
                 {
-                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork &&
-                        ip.Address.ToString().StartsWith(prefix))
-                    {
-                        result.Add(ip.Address.ToString());                        
+                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork && ip.Address.ToString().StartsWith(prefix))
+                    {                      
                         Console.WriteLine(ip.Address.ToString());
                         return ip.Address.ToString();
                     };
@@ -369,4 +388,7 @@ internal class Program
         Console.WriteLine("0.0.0.0");
         return null;
     }
+
+    #endregion NetTools
+
 }

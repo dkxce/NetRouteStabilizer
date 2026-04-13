@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
@@ -29,29 +30,45 @@ namespace NetRouteStabilizer
         public int TcpPort { get; set; } = 443;
         public bool TCP { get; set; } = true;
         public bool UDP { get; set; } = false;
-
-        // _source_url, _fetched_at, _server_id
     }
 
     public class RotatorConfig
     {
         public string LogDateTimeFormat = "dd HH:mm:ss";
 
-        public string VPNServersFile = "vpngate_full_list.json";
-        public string VPNServersFind = "opengw.net";
-        public string VPNAdapterName = "VPN";
-        public string VPNAccountFormat = "%CountryShort% %HostName%.opengw.net";
-        public string VPNServerFormat = "%IP%/tcp:%TcpPort%";            
-        public bool   VPNServerPing = true;   
+        public string VPNServersFile    { get; set; } = "vpngate_full_list.json";
+        public string VPNServersFind    { get; set; } = "opengw.net";
+        public string VPNAdapterName    { get; set; } = "VPN";
+        public string VPNAccountFormat  { get; set; } = "%CountryShort% %HostName%.opengw.net";
+        public string VPNServerFormat   { get; set; } = "%IP%/tcp:%TcpPort%";            
+        public bool   VPNServerPing     { get; set; } = true;   
         
-        public int MaxExistingAttempts = 5;
-        public int MaxNewServerAttempts = 5;
+        public int MaxExistingAttempts  { get; set; } = 5;
+        public int MaxNewServerAttempts { get; set; } = 5;
 
-        public int ConnectDelay = 15;
-        public int DisconnectDelay = 3;
-        public int DetectDelay = 5;
+        public int ConnectDelay         { get; set; } = 15;
+        public int DisconnectDelay      { get; set; } = 3;
+        public int DetectDelay          { get; set; } = 5;
 
-        public string[] Countries = new string[] { "JP", "KR" };
+        public string[] Countries       { get; set; } = new string[] { "JP", "KR", "TW", "DE", "FR", "FI" };
+
+        public override string ToString()
+        {
+            string result = "";
+
+            PropertyInfo[] properties = this.GetType().GetProperties();
+
+            for (int i = 0; i < properties.Length; i++)
+            {
+                string name = properties[i].Name;
+                string value = properties[i].GetValue(this)?.ToString() ?? "";
+                if (name == "Countries")
+                    result += (result.Length > 0 ? "\r\n" : "") + $"    {name}: `{string.Join(",", this.Countries)}`";
+                else
+                    result +=  (result.Length > 0 ? "\r\n" : "") + $"    {name}: `{value}`";
+            };
+            return result;
+        }
     }
 
     public class VPNGateRotator
@@ -84,10 +101,11 @@ namespace NetRouteStabilizer
         {
             Environment.ExitCode = EXIT_FAILURE;
 
-            Log("------------------------------------");
-            Log("--- dkxce VPNGate Server Rotator ---");
-            Log("------------------------------------");
-            Log($"ROTATE VPNGATE CONFIG `NetRouteRotatorConfig.json`: \r\n ... {JsonConvert.SerializeObject(config)} ...");
+            Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
+            Console.WriteLine("=== dkxce VPNGate Server Rotator ===");
+            Console.WriteLine("=== Для выхода нажмите Ctrl+C. ===\n");
+            
+            Log($"LOADED VPNGATE CONFIG `NetRouteRotatorConfig.json`: \r\n{{\r\n{config}\r\n}} ...");
 
             if (!File.Exists(VpnCmdPath)) {
                 Log("[ERROR] vpncmd.exe NOT FOUND");
@@ -434,5 +452,27 @@ namespace NetRouteStabilizer
         }
 
         #endregion addit
+
+        public static int ShrinkJSON()
+        {
+            VpnGateServer[] jsonServers = LoadVpnGateServersFromJson(config.VPNServersFile);
+
+            if (jsonServers == null || jsonServers.Length == 0)
+            {
+                Log("[WARN] JSON FILE NOT FOUND, EMPTY OR HAS NO SERVERS");
+                return Environment.ExitCode = EXIT_NO_JSON;
+            }
+            else
+            {
+                Log($"... loaded {jsonServers.Length} servers");
+                FileInfo fi = new FileInfo(config.VPNServersFile);
+                Log($"Trying to shrink {fi.Length / 1024} KB ...");
+                string json = JsonConvert.SerializeObject(jsonServers, Formatting.Indented);
+                File.WriteAllText(config.VPNServersFile, json);
+                fi = new FileInfo(config.VPNServersFile);
+                Log($"OK, Shrinked to {fi.Length / 1024} KB");
+                return Environment.ExitCode = EXIT_SUCCESS;
+            };
+        }
     }
 }
