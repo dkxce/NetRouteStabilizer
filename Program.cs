@@ -29,7 +29,7 @@ internal class Program
             if (string.Equals(args[i], "/monitor", StringComparison.OrdinalIgnoreCase)) { Monitor(); return; };
             if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase)) { ParseVPNGateCSV(); return; };
             if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase)) { GetIpAddressesByPrefix("10.211."); return; };
-            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ProcessRotate(); return; };
+            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ProcessRotate(args); return; };
             if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ShrinkJSON(); return; };
         };
         Help();
@@ -70,10 +70,13 @@ internal class Program
         Console.WriteLine("---       /monitor  - Start MonitoringChangesin IP Route Table ---");
         Console.WriteLine("---       /stripcsv - Shring VPNGate CSV 2 No base64cfg        ---");
         Console.WriteLine("---       /detectip - Detect IP Address of VPNGate Adapter     ---");
-        Console.WriteLine("---       /rotate         - Automatic RotateVPNGate Servers    ---");
+        Console.WriteLine("---       /rotate [/force] - Automatic RotateVPNGate Servers   ---");
         Console.WriteLine("---       /shrinkvpnjson  - Shring VPNGate JSON 2 No base64cfg ---");
         Console.WriteLine("---                                                            ---");
         Console.WriteLine("------------------------------------------------------------------");
+        Console.WriteLine("-------------- SAMPLE (Direct New ServersRotate): ----------------");
+        Console.WriteLine("--- /rotate /force /MaxExistingAttempts=0 /VPNServerPing=false ---");
+        Console.WriteLine("------------------------- SAMPLE: --------------------------------");
         Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
         Console.WriteLine("==================================================================");
         System.Threading.Thread.Sleep(3000);

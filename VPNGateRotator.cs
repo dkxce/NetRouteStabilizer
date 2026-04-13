@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
 
@@ -43,10 +44,11 @@ namespace NetRouteStabilizer
         public string VPNAdapterName    { get; set; } = "VPN";
         public string VPNAccountFormat  { get; set; } = "%CountryShort% %HostName%.opengw.net";
         public string VPNServerFormat   { get; set; } = "%IP%/tcp:%TcpPort%";            
-        public bool   VPNServerPing     { get; set; } = true;   
+        public bool   VPNServerPing     { get; set; } = true;
+        public bool   VPNHideStatus     { get; set; } = true;
         
         public int MaxExistingAttempts  { get; set; } = 5;
-        public int MaxNewServerAttempts { get; set; } = 5;
+        public int MaxNewServerAttempts { get; set; } = 100;
 
         public int ConnectDelay         { get; set; } = 15;
         public int DisconnectDelay      { get; set; } = 3;
@@ -99,14 +101,15 @@ namespace NetRouteStabilizer
             };
         }               
 
-        public static int ProcessRotate()
+        public static int ProcessRotate(string[] args)
         {
             Environment.ExitCode = EXIT_FAILURE;
 
             Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
             Console.WriteLine("=== dkxce VPNGate Server Rotator ===");
             Console.WriteLine("=== Для выхода нажмите Ctrl+C. ===\n");
-            
+
+            ParseCLI(config, args);
             Log($"LOADED VPNGATE CONFIG `NetRouteRotatorConfig.json`: \r\n{{\r\n{config}\r\n}} ...");
 
             if (!File.Exists(VpnCmdPath)) {
@@ -130,10 +133,15 @@ namespace NetRouteStabilizer
             
             Log($"Found {VpnAccounts.Count} existing accounts");
             {
-                if (connected != "none")
+                if (connected != "none" && !args.Contains("/force"))
                 {
                     Log($"ALREADY CONNECTED TO: {connected}, NO NEED ROTATE");
                     return Environment.ExitCode = EXIT_SUCCESS;
+                };
+                if (connected != "none" && args.Contains("/force"))
+                {
+                    VpnBreakConnectionsRetries(failed, true);
+                    failed = null;
                 };
                 if (!string.IsNullOrEmpty(failed))
                 {
@@ -157,7 +165,15 @@ namespace NetRouteStabilizer
 
                     Log($"  Connecting to existing server: {current}");
                     {
+                        if(config.VPNHideStatus)
+                        {
+                            string hidestCmd = $"AccountStatusHide \"{current}\"";
+                            Log($".. Executing: {hidestCmd}");
+                            VpnCmdRun(hidestCmd);
+                        };
+
                         string connectCmd = $"AccountConnect \"{current}\"";
+                        Log($".. Executing: {connectCmd}");
                         VpnCmdRun(connectCmd);
                         Thread.Sleep(config.ConnectDelay * 1000);
 
@@ -168,8 +184,20 @@ namespace NetRouteStabilizer
                             if (line.Contains("Status") && line.Contains("Completed"))
                                 success = true;
                         VpnAccounts[current] = success ? "Connected" : "Failed";
-                        if (success) connected = current;
-                        else VpnBreakConnectionsRetries(current, true);
+                        if (success)
+                        {
+                            connected = current;
+                            VpnAccountRename(connected); // ? 
+                        }
+                        else 
+                            VpnBreakConnectionsRetries(current, true);
+
+                        if (config.VPNHideStatus)
+                        {
+                            string showstCmd = $"AccountStatusShow \"{current}\"";
+                            Log($".. Executing: {showstCmd}");
+                            VpnCmdRun(showstCmd);
+                        };
                     };
                 }
             };
@@ -197,21 +225,23 @@ namespace NetRouteStabilizer
 
                 while (connected == "none" && attempts < config.MaxNewServerAttempts && invalidSkips < maxSkips)
                 {
-                    VpnGateServer srv = jsonServers[Rng.Next(jsonServers.Length)];
+                    int rnd = Rng.Next(jsonServers.Length);
+                    VpnGateServer srv = jsonServers[rnd];
 
                     bool skip = false;
-                    if (string.IsNullOrWhiteSpace(srv.IP)) skip = true;
-                    if (string.IsNullOrWhiteSpace(srv.HostName)) skip = true;
-                    if (srv.TcpPort <= 0) skip = true;
-                    if (srv.TCP == false) skip = true;
-                    if ((!long.TryParse(srv.Uptime, out long uptime)) || uptime <= 1000) skip = true;
-                    if (!config.Countries.Contains(srv.CountryShort)) skip = true;
-                    if (srv.Operator.Contains("Academic Use Only")) skip = true;
+                    string skipReason = "";
+                    if (string.IsNullOrWhiteSpace(srv.IP)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No IP"; };
+                    if (string.IsNullOrWhiteSpace(srv.HostName)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No HostName"; };
+                    if (srv.TcpPort <= 0) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No Port"; };
+                    if (srv.TCP == false) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No TCP"; }; ;
+                    if ((!long.TryParse(srv.Uptime, out long uptime)) || uptime <= 1000) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad UpTime"; };
+                    if (!config.Countries.Contains(srv.CountryShort)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad Country"; };
+                    if (srv.Operator.Contains("Academic Use Only")) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Academic Use Only"; };
 
-                    if(skip)
+                    if (skip)
                     {
                         invalidSkips++;
-                        Log($"  SKIP INVALID SERVER [{srv.CountryShort} {srv.HostName ?? "NULL"}:{srv.TcpPort}({srv.TCP})] UpTime: {uptime}. Skips: {invalidSkips}");
+                        Log($"  SKIP INVALID SERVER [{srv.CountryShort} {srv.HostName ?? "NULL"}:{srv.TcpPort}({srv.TCP})] UpTime: {uptime} ({skipReason}). Skips: {invalidSkips}");
                         continue;
                     };
                     invalidSkips = 0;
@@ -219,7 +249,7 @@ namespace NetRouteStabilizer
 
                     Log($"  New server attempt {attempts}/{config.MaxNewServerAttempts}");
                     {
-                        Log($"  SELECTED: {srv.CountryShort} {srv.HostName} ({srv.IP}:{srv.TcpPort}) | Score:{srv.Score} | Ping:{srv.Ping}ms");
+                        Log($"  SELECTED [{rnd}]: {srv.CountryShort} {srv.HostName} ({srv.IP}:{srv.TcpPort}) | Score:{srv.Score} | Ping:{srv.Ping}ms");
 
                         if (config.VPNServerPing)
                         {
@@ -233,15 +263,30 @@ namespace NetRouteStabilizer
                             };
                         };
 
-                        string accountName = ApplyTemplate(srv, config.VPNAccountFormat);
+                        string accountName = ApplyTemplate(srv, config.VPNAccountFormat) + " - " + DateTime.Now.ToString("yyMMdd");
                         bool was_added = VpnAccounts.ContainsKey(accountName);
                         VpnAccountCreate(srv, accountName, config.VPNAdapterName); // create or update
                         VpnAccounts[accountName] = "Created";
                         Thread.Sleep(1000);
 
+                        if(was_added)
+                        {
+                            VpnAccountUpdate(srv, accountName, config.VPNAdapterName); // create or update
+                            VpnAccounts[accountName] = "Updated";
+                            Thread.Sleep(1000);
+                        };
+
                         Log($"  Connecting to: {accountName}");
                         {
+                            if (config.VPNHideStatus)
+                            {
+                                string hidestCmd = $"AccountStatusHide \"{accountName}\"";
+                                Log($".. Executing: {hidestCmd}");
+                                VpnCmdRun(hidestCmd);
+                            };
+
                             string connectCmd = $"AccountConnect \"{accountName}\"";
+                            Log($".. Executing: {connectCmd}");
                             VpnCmdRun(connectCmd);
                             Thread.Sleep(config.ConnectDelay * 1000);
                         };
@@ -258,7 +303,15 @@ namespace NetRouteStabilizer
                         {
                             VpnAccounts[accountName] = "Connected";
                             connected = accountName;
+                            VpnAccountRename(accountName); // ? 
                             Log($"  SUCCESSFULLY CONNECTED TO: {accountName}");
+
+                            if (config.VPNHideStatus)
+                            {
+                                string showstCmd = $"AccountStatusShow \"{accountName}\"";
+                                Log($".. Executing: {showstCmd}");
+                                VpnCmdRun(showstCmd);
+                            };
                         }
                         else
                         {
@@ -270,9 +323,19 @@ namespace NetRouteStabilizer
                             if (!was_added)
                             {
                                 string deleteCmd = $"AccountDelete \"{accountName}\"";
+                                Log($".. Executing: {deleteCmd}");
                                 VpnCmdRun(deleteCmd);
                                 VpnAccounts.Remove(accountName);
                                 Thread.Sleep(1000);
+                            }
+                            else
+                            {
+                                if (config.VPNHideStatus)
+                                {
+                                    string showstCmd = $"AccountStatusShow \"{accountName}\"";
+                                    Log($".. Executing: {showstCmd}");
+                                    VpnCmdRun(showstCmd);
+                                };
                             };
                         };
                     };
@@ -365,9 +428,25 @@ namespace NetRouteStabilizer
         private static void VpnAccountCreate(VpnGateServer srv, string accountName, string nic = "VPN")
         { 
             string serverArg = ApplyTemplate(srv, config.VPNServerFormat);
-            string createCmd = $"  AccountCreate \"{accountName}\" /SERVER:\"{serverArg}\" /HUB:\"VPNGate\" /USERNAME:\"vpn\" /NICNAME:\"{nic}\"";
+            string createCmd = $"AccountCreate \"{accountName}\" /SERVER:\"{serverArg}\" /HUB:\"VPNGate\" /USERNAME:\"vpn\" /NICNAME:\"{nic}\"";
             Log($".. Executing: {createCmd}");
             VpnCmdRun(createCmd);
+        }
+
+        private static void VpnAccountUpdate(VpnGateServer srv, string accountName, string nic = "VPN")
+        { 
+            string serverArg = ApplyTemplate(srv, config.VPNServerFormat);
+            string updateCmd = $"AccountSet \"{accountName}\" /SERVER:\"{serverArg}\" /HUB:\"VPNGate\"";
+            Log($".. Executing: {updateCmd}");
+            VpnCmdRun(updateCmd);
+        }
+
+        private static void VpnAccountRename(string accountName)
+        { 
+            string newName = Regex.Replace(accountName, @"\s-\s(?:CURRENT|\d{6}|T\d{4})$", "") + " - " + DateTime.Now.ToString("yyMMdd");
+            string updateCmd = $"AccountRename \"{accountName}\" /NEW:\"{newName}\"";
+            Log($".. Executing: {updateCmd}");
+            VpnCmdRun(updateCmd);
         }
 
         private static string VpnCmdRun(string arguments)
@@ -454,6 +533,70 @@ namespace NetRouteStabilizer
         }
 
         #endregion addit
+
+        #region CLI Tools
+        private static void ParseCLI(RotatorConfig config, string[] args)
+        {
+            if (config == null || args == null) return;
+
+            Type configType = config.GetType();
+            foreach (var arg in args)
+            {
+                if (string.IsNullOrWhiteSpace(arg) || !arg.Contains("=")) continue;
+
+                string trimmed = arg.TrimStart('/', '-', '+');
+                string[] parts = trimmed.Split(new[] { '=' }, 2, StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length != 2) continue;
+
+                string paramName = parts[0].Trim();
+                string paramValue = parts[1].Trim();
+
+                // Ищем поле или свойство с таким именем (регистронезависимо)
+                MemberInfo member = configType.GetMember(paramName,
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase)
+                    ?.FirstOrDefault(m => m.MemberType == MemberTypes.Field || m.MemberType == MemberTypes.Property);
+
+                if (member == null) continue;
+
+                try
+                {
+                    if (member is FieldInfo field)
+                    {
+                        var converted = ConvertValue(paramValue, field.FieldType);
+                        field.SetValue(config, converted);
+                    }
+                    else if (member is PropertyInfo prop && prop.CanWrite)
+                    {
+                        var converted = ConvertValue(paramValue, prop.PropertyType);
+                        prop.SetValue(config, converted);
+                    }
+                }
+                catch { };
+            }
+        }
+
+        private static object ConvertValue(string value, Type targetType)
+        {
+            if (targetType == typeof(string))
+                return value;
+
+            if (targetType == typeof(bool))
+                return bool.TryParse(value, out var b) ? b : throw new FormatException("Must be true/false");
+
+            if (targetType == typeof(int))
+                return int.TryParse(value, out var i) ? i : throw new FormatException("Must be number");
+
+            if (targetType == typeof(double) || targetType == typeof(float))
+                return Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+
+            if (targetType.IsEnum)
+                return Enum.Parse(targetType, value, ignoreCase: true);
+
+            return Convert.ChangeType(value, targetType, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        #endregion CLI Tools
 
         public static int ShrinkJSON()
         {
