@@ -6,8 +6,6 @@ using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Text.RegularExpressions;
-using System.Collections.Generic;
 using System.Net.Sockets;
 using NetRouteStabilizer;
 

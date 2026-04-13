@@ -1,0 +1,38 @@
+*** [root] ***
+
+VPNGateCollector.py 
+                    - collect VPNGate Servers all sites to:
+					- > vpngate_full_list.json (FULL)
+					- > vpngate_full_list.json.csv (FULL)
+					- > vpngate_full_list.jsonno_cfg.csv (NO BASE64 CFG)
+					
+vpngate_full_list.jsonno_cfg.zip
+                    - zipped vpngate_full_list.jsonno_cfg.csv 
+					
+*** [bin/Debug] ***
+
+NetRouteRotatorConfig.json
+                    - config to /rotate function
+
+NetRouteStabilizer.cmd
+                    - script to check current ip routes 
+					- > check default route 0.0.0.0
+					- > check vpngate metrics
+					- > run /rotate if no vpn connection
+					- > normalize route if metric is low
+					- > proximize: update proxy and telegram routes
+					- > save scripts 2 CHECK/DELETE/NORMILIZE route 
+					
+NetRouteStabilizer.exe
+                    - > program to /monitor ip route changes
+                    - > program to /rotate vpngate servers (exising + new by `vpngate_full_list.json`)
+                    - > program to /detectip vpngate adapter
+					
+NetRouteStabilizerTestVPNAlive.cmd
+                    - script to rotate exisitng VPNGate servers only
+					
+curl.exe
+                    - > used by `NetRouteStabilizer.cmd` & `VPNGateCollector.py `
+					
+vpngate_full_list.json
+                    - > used by `NetRouteStabilizer.exe /rotate`
