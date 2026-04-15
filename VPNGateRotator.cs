@@ -33,6 +33,9 @@ namespace NetRouteStabilizer
         public int TcpPort { get; set; } = 443;
         public bool TCP { get; set; } = true;
         public bool UDP { get; set; } = false;
+
+        [JsonProperty(PropertyName = "_fetched_at")]
+        public DateTime FetchedAt { get; set; } = DateTime.Now;
     }
 
     public class RotatorConfig
@@ -46,6 +49,7 @@ namespace NetRouteStabilizer
         public string VPNServerFormat   { get; set; } = "%IP%/tcp:%TcpPort%";            
         public bool   VPNServerPing     { get; set; } = true;
         public bool   VPNHideStatus     { get; set; } = true;
+        public int    VPNSkipOldDays    { get; set; } = 0;
         
         public int MaxExistingAttempts  { get; set; } = 5;
         public int MaxNewServerAttempts { get; set; } = 100;
@@ -54,8 +58,7 @@ namespace NetRouteStabilizer
         public int DisconnectDelay      { get; set; } = 3;
         public int DetectDelay          { get; set; } = 5;
 
-        public string[] Countries       { get; set; } = new string[] { "JP", "KR", "TW", "DE", "FR", "FI" };
-
+        public string[] Countries       { get; set; } = new string[] { "JP", "KR", "TW", "DE", "FR", "FI" };        
         public override string ToString()
         {
             string result = "";
@@ -230,6 +233,7 @@ namespace NetRouteStabilizer
 
                     bool skip = false;
                     string skipReason = "";
+                    double age = DateTime.Now.Subtract(srv.FetchedAt).TotalDays;
                     if (string.IsNullOrWhiteSpace(srv.IP)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No IP"; };
                     if (string.IsNullOrWhiteSpace(srv.HostName)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No HostName"; };
                     if (srv.TcpPort <= 0) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No Port"; };
@@ -237,6 +241,7 @@ namespace NetRouteStabilizer
                     if ((!long.TryParse(srv.Uptime, out long uptime)) || uptime <= 1000) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad UpTime"; };
                     if (!config.Countries.Contains(srv.CountryShort)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad Country"; };
                     if (srv.Operator.Contains("Academic Use Only")) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Academic Use Only"; };
+                    if (config.VPNSkipOldDays > 0 && age > config.VPNSkipOldDays) { skip = true; skipReason += (skipReason == "" ? "" : "/") + $"Old {age:F1}d"; };
 
                     if (skip)
                     {
