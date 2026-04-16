@@ -1,0 +1,32 @@
+{
+    "LogDateTimeFormat": "dd HH:mm:ss",
+    "VPNGateway": "10.211.254.254",
+    "VPNGateNormalMetric": 1111,
+    "VPNGateTriggerMetric": 999,
+    "NormalGateway": "192.168.177.254",
+    "NormalMetric": 35,
+    "Proxies": [
+        "161.115.230.27",
+        "85.195.81.161"
+    ],
+    "ProxiesMetric": 20,
+    "ProxiesKeepRestart": false,
+    "Telegram": [
+        "149.154.160.0/255.255.240.0",
+        "149.154.176.0/255.255.240.0",
+        "91.108.4.0/255.255.252.0",
+        "91.108.8.0/255.255.252.0",
+        "91.108.12.0/255.255.252.0",
+        "91.108.16.0/255.255.252.0",
+        "91.108.56.0/255.255.252.0",
+        "5.28.16.0/255.255.248.0",
+        "5.28.24.0/255.255.248.0",
+        "109.239.140.0/255.255.255.0"
+    ],
+    "TelegramMetric": 20,
+    "TelegramKeepRestart": false,
+    "Rotate3Proxy": true,
+    "Rotate3ProxyRestart": true,
+    "Rotate3ProxyFileName": "\\3proxy-0.9.5-x64-dkxce\\bin64\\3proxy.cfg",
+    "Rotate3ProxyRegex": "external 10\\.211\\.\\d{1,3}.\\d{1,3}"
+}

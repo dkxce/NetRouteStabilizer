@@ -26,16 +26,23 @@ internal class Program
     {
         for (int i = 0; i < args.Length; i++)
         {
-            if (string.Equals(args[i], "/monitor", StringComparison.OrdinalIgnoreCase)) { Monitor(); return; };
-            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase)) { ParseVPNGateCSV(); return; };
-            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase)) { GetIpAddressesByPrefix("10.211."); return; };
             if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ProcessRotate(args); return; };
+            if (string.Equals(args[i], "/smonitor", StringComparison.OrdinalIgnoreCase)) { ScriptMonitor(); return; };
+            if (string.Equals(args[i], "/cmonitor", StringComparison.OrdinalIgnoreCase)) { CodeMonitor(); return; };
+            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase)) { GetIpAddressesByPrefix("10.211."); return; };
+            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase)) { ParseVPNGateCSV(); return; };            
             if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ShrinkJSON(); return; };
+            if (string.Equals(args[i], "/stabilize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Stabilize(args); return; };
+            if (string.Equals(args[i], "/direct", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Direct(args); return; };
+            if (string.Equals(args[i], "/normalize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Normalize(args, false); return; };
+            if (string.Equals(args[i], "/proximize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Proximize(args, false); return; };
+            if (string.Equals(args[i], "/deletenw", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Deletize(args, false); return; };
+            if (string.Equals(args[i], "/3proxy", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Rotate3Proxy(args, false); return; };
         };
         Help();
     }
 
-    private static void Monitor()
+    private static void ScriptMonitor()
     {         
         Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
         Console.WriteLine("=== Мониторинг изменений таблицы маршрутизации запущен ===");
@@ -61,24 +68,76 @@ internal class Program
         };
     }
 
+    private static void CodeMonitor()
+    {         
+        Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
+        Console.WriteLine("=== Мониторинг изменений таблицы маршрутизации запущен ===");
+        Console.WriteLine("=== Приложение автоматически запустит скрипт NetRouteStabilizer.exe /stabilize при изменении маршрутов. ===");
+        Console.WriteLine("=== Для выхода нажмите Ctrl+C. ===\n");        
+
+        Thread monitorThread = new Thread(StartRouteMonitoring);
+        monitorThread.IsBackground = true;
+        monitorThread.Start();
+
+        while (true)
+        {
+            if (lastUpdate != DateTime.MinValue)
+            {
+                if (DateTime.UtcNow.Subtract(lastUpdate).TotalMilliseconds >= delay)
+                {
+                    lastUpdate = DateTime.MinValue;
+                    GetRouteTableChanges();
+                    RunSelfScript();
+                };
+            };
+            Thread.Sleep(1000);
+        };
+    }
+
     private static void Help()
     {
-        Console.WriteLine("==================================================================");
-        Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
-        Console.WriteLine("------------------------------------------------------------------");
-        Console.WriteLine("--- Args:                                                      ---");
-        Console.WriteLine("---       /monitor  - Start MonitoringChangesin IP Route Table ---");
-        Console.WriteLine("---       /stripcsv - Shring VPNGate CSV 2 No base64cfg        ---");
-        Console.WriteLine("---       /detectip - Detect IP Address of VPNGate Adapter     ---");
-        Console.WriteLine("---       /rotate [/force] - Automatic RotateVPNGate Servers   ---");
-        Console.WriteLine("---       /shrinkvpnjson  - Shring VPNGate JSON 2 No base64cfg ---");
-        Console.WriteLine("---                                                            ---");
-        Console.WriteLine("------------------------------------------------------------------");
-        Console.WriteLine("-------------- SAMPLE (Direct New ServersRotate): ----------------");
-        Console.WriteLine("--- /rotate /force /MaxExistingAttempts=0 /VPNServerPing=false ---");
-        Console.WriteLine("------------------------- SAMPLE: --------------------------------");
-        Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
-        Console.WriteLine("==================================================================");
+        Console.WriteLine("==========================================================================");
+        Console.WriteLine("===     https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026     ===");
+        Console.WriteLine("==========================================================================");
+        Console.WriteLine("--- Args:                                                              ---");
+        Console.WriteLine("---       /smonitor - Start Monitoring Changes in IP Route Table (cmd) ---");
+        Console.WriteLine("---                   Run NetRouteStabilizer.cmd on Detect             ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /cmonitor - Start Monitoring Changes in IP Route Table (exe) ---");
+        Console.WriteLine("---                   Run /stabilize on Detect with:                   ---");
+        Console.WriteLine("---                       - /rotate    (if VPNGate disconnected)       ---");
+        Console.WriteLine("---                       - /normalize (if VPNGate metric is low)      ---");
+        Console.WriteLine("---                       - /proximize (if connection is alive)        ---");
+        Console.WriteLine("---                       - /3proxy    (if enabled in config)          ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /rotate [/force] - Automatic RotateVPNGate Servers           ---");
+        Console.WriteLine("---                          Settings in NetRouteRotatorConfig.json    ---");
+        Console.WriteLine("---                          Resettings by CLI                         ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /detectip        - Detect IP Address of VPNGate Adapter      ---");        
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /stripcsv     - Shring VPNGate CSV 2 No base64cfg            ---");
+        Console.WriteLine("---                       Input  FileName: vpnroutes_vpngate.t         ---");
+        Console.WriteLine("---                       Output FileName: vpnroutes_vpngate_nocfg.csv ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /shrinkvpnjson   - Shring VPNGate JSON 2 No base64cfg        ---");
+        Console.WriteLine("---                          Settings in NetRouteRotatorConfig.json    ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /stabilize  - Stabilize VPN GateConnection                   ---");        
+        Console.WriteLine("---       /normalize  - Set Normal Direct/VPNGate Network              ---");
+        Console.WriteLine("---       /proximize  - Set Normal Proxy Network                       ---");
+        Console.WriteLine("---       /direct     - Set Direct Network connection                  ---");
+        Console.WriteLine("---       /deletenw   - Delete Proxy Network                           ---");
+        Console.WriteLine("---       /3proxy     - Restart 3proxy on VPNGate IP                   ---");
+        Console.WriteLine("---                     Setting in NetRouteStabilizer.json             ---");
+        Console.WriteLine("---                     Resettings by CLI                              ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("--------------------------------------------------------------------------");
+        Console.WriteLine("---  SAMPLE (Direct New ServersRotate):                                ---");
+        Console.WriteLine("---     /rotate /force /MaxExistingAttempts=0 /VPNServerPing=false     ---");
+        Console.WriteLine("--------------------------------------------------------------------------");
+        Console.WriteLine("===     https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026     ===");
+        Console.WriteLine("==========================================================================");
         System.Threading.Thread.Sleep(3000);
     }
 
@@ -89,12 +148,12 @@ internal class Program
             var searcher = new ManagementObjectSearcher(
                 "SELECT Destination, Mask, NextHop, Metric1, InterfaceIndex, Protocol FROM Win32_IP4RouteTable");
 
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Текущие маршруты:");
+            Stabilizer.Log($"Текущие маршруты:");
             foreach (ManagementObject route in searcher.Get())
             {
-                Console.WriteLine($" - {route["Destination"]}/{route["Mask"]} -> {route["NextHop"]} (metric: {route["Metric1"]})");
+                Stabilizer.Log($" - {route["Destination"]}/{route["Mask"]} -> {route["NextHop"]} (metric: {route["Metric1"]})");
             };
-            Console.WriteLine();
+            Stabilizer.Log();
         }
         catch { };
     }
@@ -108,19 +167,19 @@ internal class Program
             watcher.EventArrived += (sender, e) =>
             {
                 if (isLaunchedNorm) return; // изменения инициированы текущей программой         
-                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Обнаружено изменение маршрута! Ждем {delay / 1000} секунд.");
+                Stabilizer.Log($"Обнаружено изменение маршрута! Ждем {delay / 1000} секунд.");
                 lastUpdate = DateTime.UtcNow;
             };
 
             try
             {
                 watcher.Start();
-                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Запуск листинга изменений.");
+                Stabilizer.Log($"Запуск листинга изменений.");
             }
             catch (ManagementException ex)
             {
-                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Ошибка запуска мониторинга: {ex.Message}");
-                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Возможно, требуются права администратора.");
+                Stabilizer.Log($"  Ошибка запуска мониторинга: {ex.Message}");
+                Stabilizer.Log($"  Возможно, требуются права администратора.");
             };
 
             Thread.Sleep(Timeout.Infinite);
@@ -131,12 +190,23 @@ internal class Program
     #region RUN
     private static void RunCmdScript()
     {
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Запуск скрипта NetRouteStabilizer.cmd ...");
+        Stabilizer.Log($"Запуск скрипта NetRouteStabilizer.cmd ...");
         isLaunchedNorm = true;
         // PingHost("ya.ru");
         RunCommandRealTime("cmd.exe", $"/c \"{script}\"");
         Thread.Sleep(5000);
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Возврат к листингу изменений.");
+        Stabilizer.Log($"Возврат к листингу изменений.");
+        isLaunchedNorm = false;
+    }
+
+    private static void RunSelfScript()
+    {
+        Stabilizer.Log($"Запуск скрипта NetRouteStabilizer.exe /stabilize ...");
+        isLaunchedNorm = true;
+        // PingHost("ya.ru");
+        Stabilizer.Stabilize(new string[0]);
+        Thread.Sleep(5000);
+        Stabilizer.Log($"Возврат к листингу изменений.");
         isLaunchedNorm = false;
     }
 
@@ -160,17 +230,17 @@ internal class Program
                 p.WaitForExit();
 
                 if (!string.IsNullOrWhiteSpace(output))
-                    Console.WriteLine(output.Trim());
+                    Stabilizer.Log(output.Trim());
                 if (!string.IsNullOrWhiteSpace(error))
                     Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"ERR: {error.Trim()}");
+                Stabilizer.Log($"ERR: {error.Trim()}");
                 Console.ResetColor();
             }
         }
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"Ошибка выполнения команды '{cmd} {args}': {ex.Message}");
+            Stabilizer.Log($"Ошибка выполнения команды '{cmd} {args}': {ex.Message}");
             Console.ResetColor();
         }
     }
@@ -194,7 +264,7 @@ internal class Program
         // 1. Handle Real-time Output
         process.OutputDataReceived += (sender, e) =>
         {
-            if (!string.IsNullOrEmpty(e.Data)) Console.WriteLine(e.Data);
+            if (!string.IsNullOrEmpty(e.Data)) Stabilizer.Log(e.Data);
         };
 
         // 2. Handle Real-time Errors
@@ -203,7 +273,7 @@ internal class Program
             if (!string.IsNullOrEmpty(e.Data))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(e.Data);
+                Stabilizer.Log(e.Data);
                 Console.ResetColor();
             }
         };
@@ -241,7 +311,7 @@ internal class Program
             if (System.IO.File.Exists(csv_dnld))
             {
                 FileInfo fi = new FileInfo(csv_dnld);
-                Console.WriteLine($"=== ФАЙЛ НАЙДЕН - {fi.Length} БАЙТ ===");
+                Stabilizer.Log($"ФАЙЛ НАЙДЕН - {fi.Length} БАЙТ");
                 reader = new StreamReader(csv_dnld);
                 writer = new StreamWriter(csv_finl, false, Encoding.GetEncoding(1251));
             
@@ -275,11 +345,11 @@ internal class Program
                         if (!string.IsNullOrEmpty(cleanedLine)) writer.WriteLine(cleanedLine);
                     };                    
                 };
-                Console.WriteLine($"=== РАЗОБРАНО {lineNumber-2} ЗАПИСЕЙ ===\n");                
+                Stabilizer.Log($"  РАЗОБРАНО {lineNumber-2} ЗАПИСЕЙ\n");                
             }
             else
             {
-                Console.WriteLine($"=== ФАЙЛ НЕ НАЙДЕН !!! ===\n");
+                Stabilizer.Log($"  ФАЙЛ НЕ НАЙДЕН !!!\n");
             };
         }
         catch { }
@@ -363,13 +433,13 @@ internal class Program
         {
             Ping ping = new Ping();
             PingReply reply = ping.Send(host, timeout);
-            if (reply.Status == IPStatus.Success) Console.WriteLine($"Ping OK: {host} (TTL={reply.Options.Ttl})");
-            else Console.WriteLine($"Ping Fail: {host} ({reply.Status})");
+            if (reply.Status == IPStatus.Success) Stabilizer.Log($"Ping OK: {host} (TTL={reply.Options.Ttl})");
+            else Stabilizer.Log($"Ping Fail: {host} ({reply.Status})");
         }
         catch { };
     }
 
-    private static string GetIpAddressesByPrefix(string prefix)
+    public static string GetIpAddressesByPrefix(string prefix, bool stdoud = true)
     {
         foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
         {
@@ -380,13 +450,13 @@ internal class Program
                 {
                     if (ip.Address.AddressFamily == AddressFamily.InterNetwork && ip.Address.ToString().StartsWith(prefix))
                     {                      
-                        Console.WriteLine(ip.Address.ToString());
+                        if(stdoud) Console.WriteLine(ip.Address.ToString());
                         return ip.Address.ToString();
                     };
                 };
             };
         };
-        Console.WriteLine("0.0.0.0");
+        if(stdoud) Console.WriteLine("0.0.0.0");
         return null;
     }
 
