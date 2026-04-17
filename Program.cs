@@ -38,6 +38,7 @@ internal class Program
             if (string.Equals(args[i], "/proximize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Proximize(args, false); return; };
             if (string.Equals(args[i], "/deletenw", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Deletize(args, false); return; };
             if (string.Equals(args[i], "/3proxy", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Rotate3Proxy(args, false); return; };
+            if (string.Equals(args[i], "/collect", StringComparison.OrdinalIgnoreCase)) { VpnGateCollector.Collect(args); return; };
         };
         Help();
     }
@@ -109,6 +110,10 @@ internal class Program
         Console.WriteLine("---                       - /normalize (if VPNGate metric is low)      ---");
         Console.WriteLine("---                       - /proximize (if connection is alive)        ---");
         Console.WriteLine("---                       - /3proxy    (if enabled in config)          ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /collect         - Collect VPNGate Servers                   ---");
+        Console.WriteLine("---                       [proxy_base=socks5://127.0.0.1:1088]         ---");
+        Console.WriteLine("---                       [proxy_cred=user:pass]                       ---");
         Console.WriteLine("---                                                                    ---");
         Console.WriteLine("---       /rotate [/force] - Automatic RotateVPNGate Servers           ---");
         Console.WriteLine("---                          Settings in NetRouteRotatorConfig.json    ---");
