@@ -156,7 +156,7 @@ namespace NetRouteStabilizer
             if (exists == 0)
             {
                 Log("  SoftEtherVPN ROUTE NOT FOUND");
-                CmdRun("/rotate");
+                VPNGateRotator.ProcessRotate(args);
                 {
                     routes = GetIPRoutes("0.0.0.0");
                     exists = 0;
