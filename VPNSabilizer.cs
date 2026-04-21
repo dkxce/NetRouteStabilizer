@@ -50,6 +50,7 @@ namespace NetRouteStabilizer
             public bool Rotate3ProxyRestart { get; set; } = true;
             public string Rotate3ProxyFileName { get; set; } = "\\3proxy-0.9.5-x64-dkxce\\bin64\\3proxy.cfg";
             public string Rotate3ProxyRegex { get; set; } = "external 10\\.211\\.\\d{1,3}.\\d{1,3}";
+            public string Rotate3ProxyRegexInline { get; set; } = "\\s-e10\\.211\\.\\d{1,3}.\\d{1,3}";
 
             public override string ToString()
             {
@@ -363,6 +364,7 @@ namespace NetRouteStabilizer
 
             string cfg = File.ReadAllText(fn);
             cfg = Regex.Replace(cfg, config.Rotate3ProxyRegex, $"external {ipaddr}");
+            cfg = Regex.Replace(cfg, config.Rotate3ProxyRegexInline, $" -e{ipaddr}");
             File.WriteAllText(fn, cfg);
             if(config.Rotate3ProxyRestart)
             {
