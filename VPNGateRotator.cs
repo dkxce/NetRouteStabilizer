@@ -53,6 +53,7 @@ namespace NetRouteStabilizer
         
         public int MaxExistingAttempts  { get; set; } = 5;
         public int MaxNewServerAttempts { get; set; } = 100;
+        public int NewServerAttemptExistingStep { get; set; } = 0;
 
         public int ConnectDelay         { get; set; } = 15;
         public int DisconnectDelay      { get; set; } = 3;
@@ -154,6 +155,7 @@ namespace NetRouteStabilizer
             };
 
             // Existing Servers Rotate
+            int onLoadLength = VpnAccounts.Count;
             if (VpnAccounts.Count > 0)
             {
                 Log($"Trying to connect existing servers: (max {config.MaxExistingAttempts} attempts)");
@@ -204,6 +206,7 @@ namespace NetRouteStabilizer
                     };
                 }
             };
+            
 
             // New Servers Rotate
             if (connected == "none")
@@ -343,6 +346,57 @@ namespace NetRouteStabilizer
                                 };
                             };
                         };
+
+                        // OldServerInjection Attempt
+                        if((!success) && (config.NewServerAttemptExistingStep > 0) && (attempts % config.NewServerAttemptExistingStep == 0))
+                        {
+                            Log($"  Existing server inject {attempts}/step/{config.NewServerAttemptExistingStep}");
+
+                            string[] keys = new string[VpnAccounts.Count];
+                            VpnAccounts.Keys.CopyTo(keys, 0);
+                            string injected = keys[Rng.Next(onLoadLength)];
+
+                            Log($"  Connecting to existing server: {injected}");
+                            {
+                                if (config.VPNHideStatus)
+                                {
+                                    string hidestCmd = $"AccountStatusHide \"{injected}\"";
+                                    Log($".. Executing: {hidestCmd}");
+                                    VpnCmdRun(hidestCmd);
+                                };
+
+                                string connectCmd = $"AccountConnect \"{injected}\"";
+                                Log($".. Executing: {connectCmd}");
+                                VpnCmdRun(connectCmd);
+                                Thread.Sleep(config.ConnectDelay * 1000);
+
+                                string statusOut = VpnCmdRun($"AccountStatusGet \"{injected}\"");
+                                foreach (string line in statusOut.Split(new char[] { '\r', '\n' }))
+                                    if (line.Contains("Status") && line.Contains("Completed"))
+                                        success = true;
+
+                                VpnAccounts[injected] = success ? "Connected" : "Failed";
+                                if (success)
+                                {                                    
+                                    Log($"  SUCCESSFULLY CONNECTED TO: {injected}");
+                                    connected = injected;
+                                    VpnAccountRename(connected); // ? 
+                                }
+                                else
+                                {
+                                    Log($"  FAILED TO CONNECT TO {injected}");
+                                    VpnBreakConnectionsRetries(injected);
+                                    Thread.Sleep(1000);
+                                };
+
+                                if (config.VPNHideStatus)
+                                {
+                                    string showstCmd = $"AccountStatusShow \"{injected}\"";
+                                    Log($".. Executing: {showstCmd}");
+                                    VpnCmdRun(showstCmd);
+                                };
+                            };
+                        };
                     };
                 }
             };
@@ -446,9 +500,17 @@ namespace NetRouteStabilizer
             VpnCmdRun(updateCmd);
         }
 
-        private static void VpnAccountRename(string accountName)
-        { 
-            string newName = Regex.Replace(accountName, @"\s-\s(?:CURRENT|\d{6}|T\d{4})$", "") + " - " + DateTime.Now.ToString("yyMMdd");
+        public static void VpnAccountRename(string accountName)
+        {
+            string newName = accountName;
+            Regex rx = new Regex(@"(?:\s\[(?<count>\d+)\])?\s-\s(?:CURRENT|\d{6}|T\d{4})$");
+            Match mx = rx.Match(accountName);
+            if (mx.Success)
+            {
+                int.TryParse(mx.Groups["count"].Value ?? "1", out int count);
+                newName = rx.Replace(accountName, "") + $" [{++count}]";
+                newName += " - " + DateTime.Now.ToString("yyMMdd");
+            };            ;
             string updateCmd = $"AccountRename \"{accountName}\" /NEW:\"{newName}\"";
             Log($".. Executing: {updateCmd}");
             VpnCmdRun(updateCmd);
