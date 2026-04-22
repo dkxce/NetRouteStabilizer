@@ -52,6 +52,8 @@ namespace NetRouteStabilizer
             public string Rotate3ProxyRegex { get; set; } = "external 10\\.211\\.\\d{1,3}.\\d{1,3}";
             public string Rotate3ProxyRegexInline { get; set; } = "\\s-e10\\.211\\.\\d{1,3}.\\d{1,3}";
 
+            public List<string> Rotate3ProxyAfterAllCommands { get; set; } = new List<string>();
+
             public override string ToString()
             {
                 string result = "";
@@ -141,7 +143,7 @@ namespace NetRouteStabilizer
 
             if (exists == 1)
             {
-                Log($"  !!! PLEASE CHANGE SoftEtherVPN METRIC TO MANUAL VALUE {config.VPNGateNormalMetric} !!!");
+                Log($"  !!! PLEASE CHANGE SoftEtherVPN METRIC TO MANUAL VALUE {config.VPNGateNormalMetric} !!!","",ConsoleColor.DarkYellow);
                 Normalize(args);
                 Proximize(args);
                 if(config.Rotate3Proxy) Rotate3Proxy(args);
@@ -149,14 +151,14 @@ namespace NetRouteStabilizer
             }
             if (exists == 2)
             {
-                Log($"  NO NEED TO CHANGE DEFAULT METRICS");
+                Log($"  NO NEED TO CHANGE DEFAULT METRICS", "", ConsoleColor.Green);
                 Proximize(args);
                 if (config.Rotate3Proxy) Rotate3Proxy(args);
                 return 0;
             }
             if (exists == 0)
             {
-                Log("  SoftEtherVPN ROUTE NOT FOUND");
+                Log("  SoftEtherVPN ROUTE NOT FOUND", "", ConsoleColor.Magenta);
                 VPNGateRotator.ProcessRotate(args);
                 {
                     routes = GetIPRoutes("0.0.0.0");
@@ -168,14 +170,14 @@ namespace NetRouteStabilizer
                 if (exists == 1) Normalize(args);
                 if (exists == 2) Proximize(args);
                 if (exists > 0 && config.Rotate3Proxy) Rotate3Proxy(args);
-                if (exists == 0) Log("  SoftEtherVPN ROUTE NOT FOUND");
+                if (exists == 0) Log("  SoftEtherVPN ROUTE NOT FOUND", "", ConsoleColor.Magenta);
                 return 0;
             };
             Environment.ExitCode = 1;
             return 1;
         }
 
-        public static void Direct(string[] args)
+        public static void Direct(string[] args, bool fromCode = true)
         {
             Environment.ExitCode = 0;
 
@@ -183,6 +185,7 @@ namespace NetRouteStabilizer
             Console.WriteLine("===    dkxce VPNGate Direct Direct    ===");
             Console.WriteLine("===     Для выхода нажмите Ctrl+C.    ===\n");
 
+            if(!fromCode) ParseCLI(config, args);
             Log("SWITCHING BACK DIRECT INTERNET");
             CmdRun("delete 0.0.0.0", "route");
             CmdRun($"add 0.0.0.0 mask 0.0.0.0 ${config.NormalGateway} metric ${config.NormalMetric}", "route");                                  
@@ -198,7 +201,7 @@ namespace NetRouteStabilizer
                     Log($" - {ip}");
 
                 if (ips.Count() == 0)
-                    Log($" - FAILED TO GET IP ADDRESSES");
+                    Log($" - FAILED TO GET IP ADDRESSES", "", ConsoleColor.Red);
             };
 
             Log($"DETECTING DEFAULT ROUTES");
@@ -206,7 +209,7 @@ namespace NetRouteStabilizer
             Log($"  FOUND DEFAULT ROUTES {routes.Count}");
             foreach (RouteEntry er in routes) Log($"   - {er}");
             if (routes.Count() == 0)
-                Log($" - FAILED TO GET ROUTES");
+                Log($" - FAILED TO GET ROUTES", "", ConsoleColor.Red);
         }
 
         public static void Normalize(string[] args, bool fromCode = true)
@@ -218,6 +221,7 @@ namespace NetRouteStabilizer
                 Console.WriteLine("===     Для выхода нажмите Ctrl+C.    ===\n");
             };
 
+            if (!fromCode) ParseCLI(config, args);
             Log("SWITCHING BACK DIRECT INTERNET");
             CmdRun("delete 0.0.0.0", "route");
             CmdRun($"add 0.0.0.0 mask 0.0.0.0 ${config.NormalGateway} metric ${config.NormalMetric}", "route");
@@ -242,7 +246,7 @@ namespace NetRouteStabilizer
             Log($"  FOUND DEFAULT ROUTES {routes.Count}");
             foreach (RouteEntry er in routes) Log($"   - {er}");
             if (routes.Count() == 0)
-                Log($" - FAILED TO GET ROUTES");
+                Log($" - FAILED TO GET ROUTES", "", ConsoleColor.Red);
         }
 
         public static void Proximize(string[] args, bool fromCode = true)
@@ -254,6 +258,7 @@ namespace NetRouteStabilizer
                 Console.WriteLine("===     Для выхода нажмите Ctrl+C.    ===\n");
             };
 
+            if (!fromCode) ParseCLI(config, args);
             if (config.Proxies.Count > 0)
             {
                 Log("RE-ASSIGN PROXY ROUTES");
@@ -266,7 +271,7 @@ namespace NetRouteStabilizer
                     List<RouteEntry> routes = GetIPRoutes(s);
                     foreach (RouteEntry er in routes) { rCount++; Log($" - {er}"); };
                 };
-                if (rCount == 0) Log($" - NO PROXY ROUTES FOUND");
+                if (rCount == 0) Log($" - NO PROXY ROUTES FOUND", "", ConsoleColor.Yellow);
             };
 
             if (config.Telegram.Count > 0)
@@ -282,7 +287,7 @@ namespace NetRouteStabilizer
                     List<RouteEntry> routes = GetIPRoutes(ipm[0]);
                     foreach (RouteEntry er in routes) { rCount++; Log($" - {er}"); };
                 };
-                if (rCount == 0) Log($" - NO TELEGRAM ROUTES FOUND");
+                if (rCount == 0) Log($" - NO TELEGRAM ROUTES FOUND", "", ConsoleColor.Yellow);
             };
         }
 
@@ -295,6 +300,7 @@ namespace NetRouteStabilizer
                 Console.WriteLine("===     Для выхода нажмите Ctrl+C.    ===\n");
             };
 
+            if (!fromCode) ParseCLI(config, args);
             if (config.Proxies.Count > 0)
             {
                 Log("RE-ASSIGN PROXY ROUTES");
@@ -306,7 +312,7 @@ namespace NetRouteStabilizer
                     List<RouteEntry> routes = GetIPRoutes(s);
                     foreach (RouteEntry er in routes) { rCount++; Log($" - {er}"); };
                 };
-                if (rCount == 0) Log($" - NO PROXY ROUTES FOUND");
+                if (rCount == 0) Log($" - NO PROXY ROUTES FOUND", "", ConsoleColor.Yellow);
             };
 
             if (config.Telegram.Count > 0)
@@ -321,7 +327,7 @@ namespace NetRouteStabilizer
                     List<RouteEntry> routes = GetIPRoutes(ipm[0]);
                     foreach (RouteEntry er in routes) { rCount++; Log($" - {er}"); };
                 };
-                if (rCount == 0) Log($" - NO TELEGRAM ROUTES FOUND");
+                if (rCount == 0) Log($" - NO TELEGRAM ROUTES FOUND", "", ConsoleColor.Yellow);
             };
         }
 
@@ -334,6 +340,7 @@ namespace NetRouteStabilizer
                 Console.WriteLine("===     Для выхода нажмите Ctrl+C.    ===\n");
             };
 
+            if (!fromCode) ParseCLI(config, args);
             Log("RE-ASSIGN 3PROXY VPNGATE OUTGOING IP");
             string ipaddr = "0.0.0.0";
             IEnumerable<IPAddress> ips = GetLocalIpAddresses(
@@ -347,20 +354,20 @@ namespace NetRouteStabilizer
             };
             if (string.IsNullOrEmpty(ipaddr) || ipaddr == "0.0.0.0")
             {
-                Log(" - NO CONNECTION FOUND");
+                Log(" - NO CONNECTION FOUND", "", ConsoleColor.Red);
                 return;
             };
-            Log($" - VPNGate IP Address = {ipaddr}");
+            Log($" - VPNGate IP Address = {ipaddr}", "", ConsoleColor.Gray);
 
             string fn = config.Rotate3ProxyFileName;
             if (!fn.Contains(":"))
                 fn = Path.Combine(GetCD(), fn.Trim(new char[] { '\\', '/' }));
             if (!File.Exists(fn))
             {
-                Log(" - NO 3PROXY CONFIG FOUND");
+                Log(" - NO 3PROXY CONFIG FOUND", "",ConsoleColor.Red);
                 return;
             };
-            Log($" - CFG: {Path.GetFileName(fn)}");
+            Log($" - CFG: {Path.GetFileName(fn)}", "", ConsoleColor.Yellow);
 
             string cfg = File.ReadAllText(fn);
             cfg = Regex.Replace(cfg, config.Rotate3ProxyRegex, $"external {ipaddr}");
@@ -372,6 +379,29 @@ namespace NetRouteStabilizer
                 System.Threading.Thread.Sleep(3000);
                 CmdRun("start 3proxy", "net");
                 System.Threading.Thread.Sleep(3000);
+                if (config.Rotate3ProxyAfterAllCommands.Count > 0)
+                {
+                    int j = 0;
+                    string prefix = "";
+                    for (int i = 0; i < config.Rotate3ProxyAfterAllCommands.Count; i++)
+                    {
+                        string s = config.Rotate3ProxyAfterAllCommands[i].Trim();
+                        if (string.IsNullOrEmpty(s)) continue;
+                        if (s.StartsWith("#")) prefix = " " + s.Substring(1);
+                        else if (s.StartsWith("@"))
+                        {
+                            prefix = "";
+                            string ln = s.Substring(1);
+                            if(string.IsNullOrEmpty(ln)) continue;
+                            Log(ln, $" - [{j++}]: ", ConsoleColor.Yellow);
+                        }
+                        else
+                        {
+                            string res = CmdRun($"/C {s}", "cmd.exe")?.Trim() ?? "";
+                            Log(res, $" - [{j++}]{prefix}: ", ConsoleColor.Gray);
+                        };
+                    };
+                };
             };
             Log($" - Completed");
         }
@@ -468,7 +498,7 @@ namespace NetRouteStabilizer
             return System.IO.Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
         }
 
-        public static void Log(string message = "", string prefix = "")
+        public static void Log(string message = "", string prefix = "", ConsoleColor? color = null, ConsoleColor? background = null)
         {
             if (string.IsNullOrEmpty(message)) return;
 
@@ -476,7 +506,13 @@ namespace NetRouteStabilizer
             string timestamp = DateTime.Now.ToString(config.LogDateTimeFormat);
 
             for (int i = 0; i < lines.Length; i++)
-                Console.WriteLine($"[{timestamp}] {prefix}{lines[i]}");
+            {                
+                Console.Write($"[{timestamp}] {prefix}");
+                if (color != null) Console.ForegroundColor = color.Value;
+                if (background != null) Console.BackgroundColor = background.Value;                
+                Console.WriteLine($"{lines[i]}");
+                if (color != null || background != null) Console.ResetColor();
+            };
         }
 
         private static string CmdRun(string arguments, string prog = null)

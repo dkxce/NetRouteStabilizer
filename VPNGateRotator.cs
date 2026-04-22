@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Reflection;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -87,9 +88,12 @@ namespace NetRouteStabilizer
         private const int EXIT_NO_VPNCMD  = 3;
         private const int EXIT_ALL_FAILED = 4;
 
+        private static Regex accountRegex = new Regex(@"(?:\s\[(?<count>\d+)\])?\s-\s(?:CURRENT|\d{6}|T\d{4})$");
+
         public static readonly string VpnCmdPath;
         public static readonly RotatorConfig config = new RotatorConfig();
         public static readonly Random Rng = new Random();
+
 
         public static Dictionary<string, string> VpnAccounts { get; private set; } = new Dictionary<string, string>();
 
@@ -117,18 +121,17 @@ namespace NetRouteStabilizer
             Log($"LOADED VPNGATE CONFIG `NetRouteRotatorConfig.json`: \r\n{{\r\n{config}\r\n}} ...");
 
             if (!File.Exists(VpnCmdPath)) {
-                Log("[ERROR] vpncmd.exe NOT FOUND");
+                Log("[ERROR] vpncmd.exe NOT FOUND", "", ConsoleColor.White, ConsoleColor.Red);
                 return Environment.ExitCode = EXIT_NO_VPNCMD;
             };
 
-            Log("DETECTING EXISTING VPNGATE SERVERS");
+            Log("DETECTING EXISTING VPNGATE SERVERS", "", ConsoleColor.DarkYellow);
             {
                 Thread.Sleep(config.DetectDelay * 1000);
                 VpnScanExistingAccounts();
             };
 
-            string connected = "none";
-            string failed = null;
+            string connected = "none", failed = null;
             foreach (KeyValuePair<string,string> kvp in VpnAccounts)
             {
                 if (kvp.Value.Equals("Connected")) connected = kvp.Key;
@@ -139,18 +142,17 @@ namespace NetRouteStabilizer
             {
                 if (connected != "none" && !args.Contains("/force"))
                 {
-                    Log($"ALREADY CONNECTED TO: {connected}, NO NEED ROTATE");
+                    Log($"ALREADY CONNECTED TO: {connected}, NO NEED ROTATE", "", ConsoleColor.White, ConsoleColor.Green);
                     return Environment.ExitCode = EXIT_SUCCESS;
                 };
                 if (connected != "none" && args.Contains("/force"))
                 {
-                    VpnBreakConnectionsRetries(failed, true);
-                    failed = null;
+                    VpnBreakConnectionsRetries(connected, true);
+                    connected = "none";
                 };
                 if (!string.IsNullOrEmpty(failed))
                 {
                     VpnBreakConnectionsRetries(failed, true);
-                    failed = null;
                 };
             };
 
@@ -158,53 +160,13 @@ namespace NetRouteStabilizer
             int onLoadLength = VpnAccounts.Count;
             if (VpnAccounts.Count > 0)
             {
-                Log($"Trying to connect existing servers: (max {config.MaxExistingAttempts} attempts)");
                 int attempts = 0;
+                Log($"Trying to connect existing servers: (max {config.MaxExistingAttempts} attempts)");                
                 while (connected == "none" && (attempts++ < config.MaxExistingAttempts))
                 {
-                    Log($"  Existing server attempt {attempts}/{config.MaxExistingAttempts}");
-
-                    string[] keys = new string[VpnAccounts.Count];
-                    VpnAccounts.Keys.CopyTo(keys, 0);
-                    string current = keys[Rng.Next(VpnAccounts.Count)];
-
-                    Log($"  Connecting to existing server: {current}");
-                    {
-                        if(config.VPNHideStatus)
-                        {
-                            string hidestCmd = $"AccountStatusHide \"{current}\"";
-                            Log($".. Executing: {hidestCmd}");
-                            VpnCmdRun(hidestCmd);
-                        };
-
-                        string connectCmd = $"AccountConnect \"{current}\"";
-                        Log($".. Executing: {connectCmd}");
-                        VpnCmdRun(connectCmd);
-                        Thread.Sleep(config.ConnectDelay * 1000);
-
-                        bool success = false;
-                        string statusCmd = $"AccountStatusGet \"{current}\"";
-                        string statusOut = VpnCmdRun(statusCmd);
-                        foreach (string line in statusOut.Split(new char[] { '\r', '\n' }))
-                            if (line.Contains("Status") && line.Contains("Completed"))
-                                success = true;
-                        VpnAccounts[current] = success ? "Connected" : "Failed";
-                        if (success)
-                        {
-                            connected = current;
-                            VpnAccountRename(connected); // ? 
-                        }
-                        else 
-                            VpnBreakConnectionsRetries(current, true);
-
-                        if (config.VPNHideStatus)
-                        {
-                            string showstCmd = $"AccountStatusShow \"{current}\"";
-                            Log($".. Executing: {showstCmd}");
-                            VpnCmdRun(showstCmd);
-                        };
-                    };
-                }
+                    Log($"  Existing server attempt {attempts}/{config.MaxExistingAttempts}", "", ConsoleColor.Yellow);
+                    ExistingAttempt(out connected);
+                };
             };
             
 
@@ -216,7 +178,7 @@ namespace NetRouteStabilizer
 
                 if (jsonServers == null || jsonServers.Length == 0)
                 {
-                    Log("[WARN] JSON FILE NOT FOUND, EMPTY OR HAS NO SERVERS");
+                    Log("[WARN] JSON FILE NOT FOUND, EMPTY OR HAS NO SERVERS", "", ConsoleColor.Red, ConsoleColor.White);
                     return Environment.ExitCode = EXIT_NO_JSON;
                 }
                 else
@@ -225,178 +187,48 @@ namespace NetRouteStabilizer
                     Log($"Trying to connect to new servers: (max {config.MaxNewServerAttempts} attempts)");
                 };
 
-                int attempts = 0;
-                int invalidSkips = 0;
-                int maxSkips = jsonServers.Length * 3;
-
+                int attempts = 0, invalidSkips = 0, maxSkips = jsonServers.Length * 3;
                 while (connected == "none" && attempts < config.MaxNewServerAttempts && invalidSkips < maxSkips)
                 {
+                    // OldServerInjection Attempt (CFG: NewServerAttemptExistingStep > 0)
+                    if ((attempts > 0) && (config.NewServerAttemptExistingStep > 0) && (attempts % config.NewServerAttemptExistingStep == 0))
+                    {
+                        Log($"  Existing server inject {attempts}/step/{config.NewServerAttemptExistingStep}", "", ConsoleColor.Yellow);
+                        if(ExistingAttempt(out connected, onLoadLength)) break; else attempts++;
+                    };
+
+                    // NewServer Attempt // GET NEW SERVER //
                     int rnd = Rng.Next(jsonServers.Length);
                     VpnGateServer srv = jsonServers[rnd];
 
-                    bool skip = false;
-                    string skipReason = "";
-                    double age = DateTime.Now.Subtract(srv.FetchedAt).TotalDays;
-                    if (string.IsNullOrWhiteSpace(srv.IP)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No IP"; };
-                    if (string.IsNullOrWhiteSpace(srv.HostName)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No HostName"; };
-                    if (srv.TcpPort <= 0) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No Port"; };
-                    if (srv.TCP == false) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No TCP"; }; ;
-                    if ((!long.TryParse(srv.Uptime, out long uptime)) || uptime <= 1000) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad UpTime"; };
-                    if (!config.Countries.Contains(srv.CountryShort)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad Country"; };
-                    if (srv.Operator.Contains("Academic Use Only")) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Academic Use Only"; };
-                    if (config.VPNSkipOldDays > 0 && age > config.VPNSkipOldDays) { skip = true; skipReason += (skipReason == "" ? "" : "/") + $"Old {age:F1}d"; };
-
-                    if (skip)
-                    {
-                        invalidSkips++;
-                        Log($"  SKIP INVALID SERVER [{srv.CountryShort} {srv.HostName ?? "NULL"}:{srv.TcpPort}({srv.TCP})] UpTime: {uptime} ({skipReason}). Skips: {invalidSkips}");
-                        continue;
+                    // IF SKIP RULES //
+                    bool skip = false; {
+                        string skipReason = "";
+                        double age = DateTime.Now.Subtract(srv.FetchedAt).TotalDays;
+                        if (string.IsNullOrWhiteSpace(srv.IP)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No IP"; };
+                        if (string.IsNullOrWhiteSpace(srv.HostName)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No HostName"; };
+                        if (srv.TcpPort <= 0) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No Port"; };
+                        if (srv.TCP == false) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No TCP"; }; ;
+                        if ((!long.TryParse(srv.Uptime, out long uptime)) || uptime <= 1000) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad UpTime"; };
+                        if (!config.Countries.Contains(srv.CountryShort)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad Country"; };
+                        if (srv.Operator.Contains("Academic Use Only")) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Academic Use Only"; };
+                        if (config.VPNSkipOldDays > 0 && age > config.VPNSkipOldDays) { skip = true; skipReason += (skipReason == "" ? "" : "/") + $"Old {age:F1}d"; };
+                        if (skip)
+                        {
+                            invalidSkips++;
+                            Log($"  SKIP INVALID SERVER [{srv.CountryShort} {srv.HostName ?? "NULL"}:{srv.TcpPort}({srv.TCP})] UpTime: {uptime} ({skipReason}). Skips: {invalidSkips}", "", ConsoleColor.Gray);
+                            continue;
+                        };
+                        invalidSkips = 0;
                     };
-                    invalidSkips = 0;
+                            
+                    // ALL IS OK //
                     attempts++;                   
-
-                    Log($"  New server attempt {attempts}/{config.MaxNewServerAttempts}");
+                    Log($"  New server attempt {attempts}/{config.MaxNewServerAttempts}", "", ConsoleColor.Yellow);
                     {
                         Log($"  SELECTED [{rnd}]: {srv.CountryShort} {srv.HostName} ({srv.IP}:{srv.TcpPort}) | Score:{srv.Score} | Ping:{srv.Ping}ms");
-
-                        if (config.VPNServerPing)
-                        {
-                            Log($"    PING: {srv.IP}...");
-                            if (PingHost(srv.IP, out _))
-                                Log($"    ... OK");
-                            else
-                            {
-                                Log($"    ... Failed");
-                                continue;
-                            };
-                        };
-
-                        string accountName = ApplyTemplate(srv, config.VPNAccountFormat) + " - " + DateTime.Now.ToString("yyMMdd");
-                        bool was_added = VpnAccounts.ContainsKey(accountName);
-                        VpnAccountCreate(srv, accountName, config.VPNAdapterName); // create or update
-                        VpnAccounts[accountName] = "Created";
-                        Thread.Sleep(1000);
-
-                        if(was_added)
-                        {
-                            VpnAccountUpdate(srv, accountName, config.VPNAdapterName); // create or update
-                            VpnAccounts[accountName] = "Updated";
-                            Thread.Sleep(1000);
-                        };
-
-                        Log($"  Connecting to: {accountName}");
-                        {
-                            if (config.VPNHideStatus)
-                            {
-                                string hidestCmd = $"AccountStatusHide \"{accountName}\"";
-                                Log($".. Executing: {hidestCmd}");
-                                VpnCmdRun(hidestCmd);
-                            };
-
-                            string connectCmd = $"AccountConnect \"{accountName}\"";
-                            Log($".. Executing: {connectCmd}");
-                            VpnCmdRun(connectCmd);
-                            Thread.Sleep(config.ConnectDelay * 1000);
-                        };
-
-                        bool success = false;
-                        {
-                            string statusOut = VpnCmdRun($"AccountStatusGet \"{accountName}\"");
-                            foreach (string line in statusOut.Split(new char[] { '\r', '\n' }))
-                                if (line.Contains("Status") && line.Contains("Completed"))
-                                    success = true;
-                        };
-
-                        if (success)
-                        {
-                            VpnAccounts[accountName] = "Connected";
-                            connected = accountName;
-                            VpnAccountRename(accountName); // ? 
-                            Log($"  SUCCESSFULLY CONNECTED TO: {accountName}");
-
-                            if (config.VPNHideStatus)
-                            {
-                                string showstCmd = $"AccountStatusShow \"{accountName}\"";
-                                Log($".. Executing: {showstCmd}");
-                                VpnCmdRun(showstCmd);
-                            };
-                        }
-                        else
-                        {
-                            VpnAccounts[accountName] = "Failed";
-                            Log($"  FAILED TO CONNECT TO {accountName}");
-                            VpnBreakConnectionsRetries(accountName);
-                            Thread.Sleep(1000);
-
-                            if (!was_added)
-                            {
-                                string deleteCmd = $"AccountDelete \"{accountName}\"";
-                                Log($".. Executing: {deleteCmd}");
-                                VpnCmdRun(deleteCmd);
-                                VpnAccounts.Remove(accountName);
-                                Thread.Sleep(1000);
-                            }
-                            else
-                            {
-                                if (config.VPNHideStatus)
-                                {
-                                    string showstCmd = $"AccountStatusShow \"{accountName}\"";
-                                    Log($".. Executing: {showstCmd}");
-                                    VpnCmdRun(showstCmd);
-                                };
-                            };
-                        };
-
-                        // OldServerInjection Attempt
-                        if((!success) && (config.NewServerAttemptExistingStep > 0) && (attempts % config.NewServerAttemptExistingStep == 0))
-                        {
-                            Log($"  Existing server inject {attempts}/step/{config.NewServerAttemptExistingStep}");
-
-                            string[] keys = new string[VpnAccounts.Count];
-                            VpnAccounts.Keys.CopyTo(keys, 0);
-                            string injected = keys[Rng.Next(onLoadLength)];
-
-                            Log($"  Connecting to existing server: {injected}");
-                            {
-                                if (config.VPNHideStatus)
-                                {
-                                    string hidestCmd = $"AccountStatusHide \"{injected}\"";
-                                    Log($".. Executing: {hidestCmd}");
-                                    VpnCmdRun(hidestCmd);
-                                };
-
-                                string connectCmd = $"AccountConnect \"{injected}\"";
-                                Log($".. Executing: {connectCmd}");
-                                VpnCmdRun(connectCmd);
-                                Thread.Sleep(config.ConnectDelay * 1000);
-
-                                string statusOut = VpnCmdRun($"AccountStatusGet \"{injected}\"");
-                                foreach (string line in statusOut.Split(new char[] { '\r', '\n' }))
-                                    if (line.Contains("Status") && line.Contains("Completed"))
-                                        success = true;
-
-                                VpnAccounts[injected] = success ? "Connected" : "Failed";
-                                if (success)
-                                {                                    
-                                    Log($"  SUCCESSFULLY CONNECTED TO: {injected}");
-                                    connected = injected;
-                                    VpnAccountRename(connected); // ? 
-                                }
-                                else
-                                {
-                                    Log($"  FAILED TO CONNECT TO {injected}");
-                                    VpnBreakConnectionsRetries(injected);
-                                    Thread.Sleep(1000);
-                                };
-
-                                if (config.VPNHideStatus)
-                                {
-                                    string showstCmd = $"AccountStatusShow \"{injected}\"";
-                                    Log($".. Executing: {showstCmd}");
-                                    VpnCmdRun(showstCmd);
-                                };
-                            };
-                        };
+                        if (config.VPNServerPing && !TryPing(srv.IP)) continue;                        
+                        NewAttempt(srv, out connected);                     
                     };
                 }
             };
@@ -404,13 +236,88 @@ namespace NetRouteStabilizer
             // Итоговый вывод
             if (connected != "none")
             {
-                Log($"SUCCESSFULLY CONNECTED TO: {connected}, NEED TO ROTATE");
+                Log($"SUCCESSFULLY CONNECTED TO: {connected}, NEED TO ROTATE", "", ConsoleColor.Green, ConsoleColor.White);
                 return Environment.ExitCode = EXIT_SUCCESS;
             }
             else
             {
-                Log("ALL CONNECTION ATTEMPTS FAILED, TRY AGAIN LATER");
+                Log("ALL CONNECTION ATTEMPTS FAILED, TRY AGAIN LATER", "", ConsoleColor.Red, ConsoleColor.White);
                 return Environment.ExitCode = EXIT_ALL_FAILED;
+            };
+        }
+
+        private static string GetAccountNewName(string accountName, int increment)
+        {
+            Match mx = accountRegex.Match(accountName);
+            int count = increment + (mx.Success && int.TryParse(mx.Groups["count"].Value ?? "1", out count) ? count : 0);
+            string newName = accountRegex.Replace(accountName, "") + $" [{count}] - " + DateTime.Now.ToString("yyMMdd");
+            return newName;
+        }
+
+        private static string AccountStartsWithExists(string startsWithText, bool fullName = false)
+        {
+            if (fullName) startsWithText = accountRegex.Replace(startsWithText, "");
+            if (VpnAccounts == null || VpnAccounts.Count == 0) return null;
+            foreach (KeyValuePair<string, string> kvp in VpnAccounts)
+                if (kvp.Key.StartsWith(startsWithText))
+                    return kvp.Key;
+            return null;
+        }
+
+        private static bool ExistingAttempt(out string connectionName, int maxRange = 0)
+        {
+            connectionName = "none";            
+            string[] keys = new string[VpnAccounts.Count]; VpnAccounts.Keys.CopyTo(keys, 0);
+            string oldName = keys[Rng.Next(Math.Min(maxRange == 0 ? VpnAccounts.Count : maxRange, VpnAccounts.Count))];
+            string curName = GetAccountNewName(oldName, +1);
+
+            Log($"  Connecting to existing server: {oldName}");
+            VpnAccountRename(oldName, curName);
+            if (config.VPNHideStatus) VpnHideStatus(curName);
+            VpnConnect(curName);
+            bool isConnected = VpnIsConnected(curName, true);
+            if (isConnected) connectionName = curName;
+            else curName = VpnAccountRename(curName, oldName);
+            if (config.VPNHideStatus) VpnShowStatus(curName);
+            return isConnected;
+        }
+
+        private static bool NewAttempt(VpnGateServer srv, out string connectionName)
+        {
+            connectionName = "none";
+            string tmpName = ApplyTemplate(srv, config.VPNAccountFormat);
+            string oldName = AccountStartsWithExists(tmpName, false);
+            string curName = GetAccountNewName(oldName ?? tmpName, +1);
+
+            Log($"  Connecting to: {curName}");
+            if (!string.IsNullOrEmpty(oldName)) VpnAccountRename(oldName, curName);            
+
+            VpnAccountCreate(srv, curName, config.VPNAdapterName); // create
+            Thread.Sleep(500);
+            VpnAccountUpdate(srv, curName, config.VPNAdapterName); // update                        
+            Thread.Sleep(500);
+
+            if (config.VPNHideStatus) VpnHideStatus(curName);
+            VpnConnect(curName);
+            bool isConnected = VpnIsConnected(curName, true);
+            if (isConnected) connectionName = curName;
+            else if (string.IsNullOrEmpty(oldName)) VpnAccountDelete(curName);
+            else if (config.VPNHideStatus) VpnShowStatus(curName);
+            return isConnected;
+        }
+
+        private static bool TryPing(string ip)
+        {
+            Log($"    PING: {ip}...");
+            if (PingHost(ip, out _))
+            {
+                Log($"    ... OK", "", ConsoleColor.Green);
+                return true;
+            }
+            else
+            {
+                Log($"    ... Failed", "", ConsoleColor.DarkRed);
+                return false;
             };
         }
 
@@ -464,7 +371,7 @@ namespace NetRouteStabilizer
 
         private static void VpnBreakConnectionsRetries(string accountName, bool skipCheck = false)
         {
-            Log($"Found failed connection: {accountName}");
+            Log($"Found failed connection: {accountName}", "", ConsoleColor.Red, ConsoleColor.DarkBlue);
             string statusOut = VpnCmdRun($"AccountStatusGet \"{accountName}\"").ToLower();
 
             bool needBreak = skipCheck ||
@@ -500,20 +407,53 @@ namespace NetRouteStabilizer
             VpnCmdRun(updateCmd);
         }
 
-        public static void VpnAccountRename(string accountName)
+        public static void VpnAccountDelete(string accountName)
         {
-            string newName = accountName;
-            Regex rx = new Regex(@"(?:\s\[(?<count>\d+)\])?\s-\s(?:CURRENT|\d{6}|T\d{4})$");
-            Match mx = rx.Match(accountName);
-            if (mx.Success)
-            {
-                int.TryParse(mx.Groups["count"].Value ?? "1", out int count);
-                newName = rx.Replace(accountName, "") + $" [{++count}]";
-                newName += " - " + DateTime.Now.ToString("yyMMdd");
-            };            ;
-            string updateCmd = $"AccountRename \"{accountName}\" /NEW:\"{newName}\"";
+            string deleteCmd = $"AccountDelete \"{accountName}\"";
+            Log($".. Executing: {deleteCmd}");
+            VpnCmdRun(deleteCmd);
+            VpnAccounts.Remove(accountName);
+            Thread.Sleep(1000);
+        }
+
+        public static string VpnAccountRename(string fromName, string toName)
+        {
+            string updateCmd = $"AccountRename \"{fromName}\" /NEW:\"{toName}\"";
             Log($".. Executing: {updateCmd}");
             VpnCmdRun(updateCmd);
+            return toName;
+        }
+
+        private static void VpnHideStatus(string accountName)
+        {
+            string hidestCmd = $"AccountStatusHide \"{accountName}\"";
+            Log($".. Executing: {hidestCmd}");
+            VpnCmdRun(hidestCmd);
+        }
+        
+        private static void VpnShowStatus(string accountName)
+        {
+            string showstCmd = $"AccountStatusShow \"{accountName}\"";
+            Log($".. Executing: {showstCmd}");
+            VpnCmdRun(showstCmd);
+        }
+        private static void VpnConnect(string accountName)
+        {
+            string connectCmd = $"AccountConnect \"{accountName}\"";
+            Log($".. Executing: {connectCmd}");
+            VpnCmdRun(connectCmd);
+            Thread.Sleep(config.ConnectDelay * 1000);
+        }
+        
+        private static bool VpnIsConnected(string accountName, bool breakIfFail = false)
+        {
+            string statusCmd = $"AccountStatusGet \"{accountName}\"";
+            string statusOut = VpnCmdRun(statusCmd);
+            foreach (string line in statusOut.Split(new char[] { '\r', '\n' }))
+                if (line.Contains("Status") && line.Contains("Completed"))
+                    return true;
+            if (breakIfFail) VpnBreakConnectionsRetries(accountName, true);
+            return false;
         }
 
         private static string VpnCmdRun(string arguments)
@@ -549,15 +489,19 @@ namespace NetRouteStabilizer
             return System.IO.Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
         }
 
-        private static void Log(string message, string prefix = "")
+        private static void Log(string message, string prefix = "", ConsoleColor? color = null, ConsoleColor? background = null)
         {
             if (string.IsNullOrEmpty(message)) return;
 
             string[] lines = message.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
             string timestamp = DateTime.Now.ToString(config.LogDateTimeFormat);
 
+
+            if (color != null) Console.ForegroundColor = color.Value;
+            if (background != null) Console.BackgroundColor = background.Value;
             for (int i = 0; i < lines.Length; i++)
                 Console.WriteLine($"[{timestamp}] {prefix}{lines[i]}");
+            if (color != null || background != null) Console.ResetColor();
         }
 
         private static string ApplyTemplate(VpnGateServer server, string template)
@@ -665,10 +609,11 @@ namespace NetRouteStabilizer
 
         #endregion CLI Tools
 
-        public static int ShrinkJSON()
+        public static int ShrinkJSON(string[] args)
         {
             VpnGateServer[] jsonServers = LoadVpnGateServersFromJson(config.VPNServersFile);
 
+            ParseCLI(config, args);
             if (jsonServers == null || jsonServers.Length == 0)
             {
                 Log("[WARN] JSON FILE NOT FOUND, EMPTY OR HAS NO SERVERS");

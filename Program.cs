@@ -27,13 +27,13 @@ internal class Program
         for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ProcessRotate(args); return; };
-            if (string.Equals(args[i], "/smonitor", StringComparison.OrdinalIgnoreCase)) { ScriptMonitor(); return; };
-            if (string.Equals(args[i], "/cmonitor", StringComparison.OrdinalIgnoreCase)) { CodeMonitor(); return; };
+            if (string.Equals(args[i], "/smonitor", StringComparison.OrdinalIgnoreCase)) { ScriptMonitor(args); return; };
+            if (string.Equals(args[i], "/cmonitor", StringComparison.OrdinalIgnoreCase)) { CodeMonitor(args); return; };
             if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase)) { GetIpAddressesByPrefix("10.211."); return; };
             if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase)) { ParseVPNGateCSV(); return; };            
-            if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ShrinkJSON(); return; };
+            if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ShrinkJSON(args); return; };
             if (string.Equals(args[i], "/stabilize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Stabilize(args); return; };
-            if (string.Equals(args[i], "/direct", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Direct(args); return; };
+            if (string.Equals(args[i], "/direct", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Direct(args, false); return; };
             if (string.Equals(args[i], "/normalize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Normalize(args, false); return; };
             if (string.Equals(args[i], "/proximize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Proximize(args, false); return; };
             if (string.Equals(args[i], "/deletenw", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Deletize(args, false); return; };
@@ -43,7 +43,7 @@ internal class Program
         Help();
     }
 
-    private static void ScriptMonitor()
+    private static void ScriptMonitor(string[] args)
     {         
         Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
         Console.WriteLine("=== Мониторинг изменений таблицы маршрутизации запущен ===");
@@ -69,7 +69,7 @@ internal class Program
         };
     }
 
-    private static void CodeMonitor()
+    private static void CodeMonitor(string[] args)
     {         
         Console.WriteLine("=== https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026 ===");
         Console.WriteLine("=== Мониторинг изменений таблицы маршрутизации запущен ===");
@@ -88,7 +88,7 @@ internal class Program
                 {
                     lastUpdate = DateTime.MinValue;
                     GetRouteTableChanges();
-                    RunSelfScript();
+                    RunSelfScript(args);
                 };
             };
             Thread.Sleep(1000);
@@ -102,46 +102,46 @@ internal class Program
         Console.WriteLine("==========================================================================");
         Console.WriteLine("--- Args:                                                              ---");
         Console.WriteLine("---       /smonitor - Start Monitoring Changes in IP Route Table (cmd) ---");
-        Console.WriteLine("---                   Run NetRouteStabilizer.cmd on Detect             ---");
+        Console.WriteLine("---                   Run `NetRouteStabilizer.cmd on Detect`           ---");
         Console.WriteLine("---                                                                    ---");
         Console.WriteLine("---       /cmonitor - Start Monitoring Changes in IP Route Table (exe) ---");
-        Console.WriteLine("---                   Run /stabilize on Detect with:                   ---");
-        Console.WriteLine("---                       - /rotate    (if VPNGate disconnected)       ---");
-        Console.WriteLine("---                       - /normalize (if VPNGate metric is low)      ---");
-        Console.WriteLine("---                       - /proximize (if connection is alive)        ---");
-        Console.WriteLine("---                       - /3proxy    (if enabled in config)          ---");
+        Console.WriteLine("---                   Run: - /stabilize on Detect with:                ---");
+        Console.WriteLine("---                        - /rotate    (if VPNGate Disconnected)      ---");
+        Console.WriteLine("---                        - /normalize (if VPNGate Metric is Low)     ---");
+        Console.WriteLine("---                        - /proximize (if Connection is Alive)       ---");
+        Console.WriteLine("---                        - /3proxy    (if Enabled in config)         ---");
+        Console.WriteLine("---             (!) > Settings in NetRouteRotatorConfig.json (/rotate) ---");
+        Console.WriteLine("---             (!) > Setting in NetRouteStabilizer.json      (others) ---");
+        Console.WriteLine("---             (!) > Resettings by @ CLI @                            ---");
         Console.WriteLine("---                                                                    ---");
-        Console.WriteLine("---       /collect         - Collect VPNGate Servers                   ---");
+        Console.WriteLine("---       /rotate [/force] - Automatic Rotate VPNGate Servers          ---");
+        Console.WriteLine("---                    (!) > Settings in NetRouteRotatorConfig.json    ---");
+        Console.WriteLine("---                    (!) > Resettings by @ CLI @                     ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /stabilize       - Stabilize VPN GateConnection              ---");
+        Console.WriteLine("---       /normalize       - Set Normal Direct/VPNGate Network         ---");
+        Console.WriteLine("---       /proximize       - Set Normal Proxy Network                  ---");
+        Console.WriteLine("---       /direct          - Set Direct Network connection             ---");
+        Console.WriteLine("---       /deletenw        - Delete Proxy Network                      ---");
+        Console.WriteLine("---       /3proxy          - Restart 3proxy on VPNGate IP              ---");
+        Console.WriteLine("---       /shrinkvpnjson   - Shring VPNGate JSON 2 No base64cfg        ---");
+        Console.WriteLine("---                    (!) > Setting in NetRouteStabilizer.json        ---");
+        Console.WriteLine("---                    (!) > Resettings by @ CLI @                     ---");
+        Console.WriteLine("---  Tools:                                                            ---");
+        Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /collect      - Collect VPNGate Servers                      ---");
         Console.WriteLine("---                       [proxy_base=socks5://127.0.0.1:1088]         ---");
         Console.WriteLine("---                       [proxy_cred=user:pass]                       ---");
-        Console.WriteLine("---                                                                    ---");
-        Console.WriteLine("---       /rotate [/force] - Automatic RotateVPNGate Servers           ---");
-        Console.WriteLine("---                          Settings in NetRouteRotatorConfig.json    ---");
-        Console.WriteLine("---                          Resettings by CLI                         ---");
-        Console.WriteLine("---                                                                    ---");
-        Console.WriteLine("---       /detectip        - Detect IP Address of VPNGate Adapter      ---");        
+        Console.WriteLine("---                                                                    ---");        
+        Console.WriteLine("---       /detectip     - Detect IP Address of VPNGate Adapter         ---");        
         Console.WriteLine("---                                                                    ---");
         Console.WriteLine("---       /stripcsv     - Shring VPNGate CSV 2 No base64cfg            ---");
-        Console.WriteLine("---                       Input  FileName: vpnroutes_vpngate.t         ---");
+        Console.WriteLine("---                       Input  FileName: vpnroutes_vpngate.txt       ---");
         Console.WriteLine("---                       Output FileName: vpnroutes_vpngate_nocfg.csv ---");
         Console.WriteLine("---                                                                    ---");
-        Console.WriteLine("---       /shrinkvpnjson   - Shring VPNGate JSON 2 No base64cfg        ---");
-        Console.WriteLine("---                          Settings in NetRouteRotatorConfig.json    ---");
-        Console.WriteLine("---                                                                    ---");
-        Console.WriteLine("---       /stabilize  - Stabilize VPN GateConnection                   ---");        
-        Console.WriteLine("---       /normalize  - Set Normal Direct/VPNGate Network              ---");
-        Console.WriteLine("---       /proximize  - Set Normal Proxy Network                       ---");
-        Console.WriteLine("---       /direct     - Set Direct Network connection                  ---");
-        Console.WriteLine("---       /deletenw   - Delete Proxy Network                           ---");
-        Console.WriteLine("---       /3proxy     - Restart 3proxy on VPNGate IP                   ---");
-        Console.WriteLine("---                     Setting in NetRouteStabilizer.json             ---");
-        Console.WriteLine("---                     Resettings by CLI                              ---");
-        Console.WriteLine("---                                                                    ---");
-        Console.WriteLine("--------------------------------------------------------------------------");
+        Console.WriteLine("==========================================================================");
         Console.WriteLine("---  SAMPLE (Direct New ServersRotate):                                ---");
         Console.WriteLine("---     /rotate /force /MaxExistingAttempts=0 /VPNServerPing=false     ---");
-        Console.WriteLine("--------------------------------------------------------------------------");
-        Console.WriteLine("===     https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026     ===");
         Console.WriteLine("==========================================================================");
         System.Threading.Thread.Sleep(3000);
     }
@@ -204,12 +204,12 @@ internal class Program
         isLaunchedNorm = false;
     }
 
-    private static void RunSelfScript()
+    private static void RunSelfScript(string[] args)
     {
         Stabilizer.Log($"Запуск скрипта NetRouteStabilizer.exe /stabilize ...");
         isLaunchedNorm = true;
         // PingHost("ya.ru");
-        Stabilizer.Stabilize(new string[0]);
+        Stabilizer.Stabilize(args);
         Thread.Sleep(5000);
         Stabilizer.Log($"Возврат к листингу изменений.");
         isLaunchedNorm = false;
