@@ -1,21 +1,41 @@
 {
-    "LogDateTimeFormat": "dd HH:mm:ss",
-	
-    "VPNServersFile": "vpngate_full_list.json",
-    "VPNServersFind": "opengw.net",
-    "VPNAdapterName": "VPN",
-    "VPNAccountFormat": "%CountryShort% %HostName%.opengw.net",
-    "VPNServerFormat": "%IP%/tcp:%TcpPort%",
-    "VPNServerPing": true,
-    "VPNHideStatus": true,
-    "VPNSkipOldDays": 0,
-	
-    "MaxExistingAttempts": 5,
-    "MaxNewServerAttempts": 100,
-	
-    "ConnectDelay": 15,
-    "DisconnectDelay": 3,
-    "DetectDelay": 5,
-	
-    "Countries":["AE","AM","AR","AT","AU","AZ","BD","BE","BG","BR","BY","CA","CL","CN","CO","CR","CZ","DE","EE","EG","ES","EU","FI","FR","GB","GD","HK","HU","ID","IN","IT","JP","KG","KH","KR","KZ","LA","LC","LT","LV","MA","MD","MM","MP","MX","MY","NL","NO","NZ","PA","PE","PH","PK","PL","PT","PY","QA","RO","RS","SA","SE","SI","SK","TH","TJ","TR","TT","TW","US","UY","UZ","VE","VN","ZA"]
+  /*JSON VPNGate Servers File from /collect*/
+  "VPNServersFile": "vpngate_full_list.json"
+  /*VPNGate text to find servers in VPNCmd AccountList*/,
+  "VPNServersFind": "opengw.net"
+  /*VPNGate Atapter name (VPN/VPN2/VPN3 ...)*/,
+  "VPNAdapterName": "VPN"
+  /*VPNGate Account Format for VPNCmd AccountCreate*/,
+  "VPNAccountFormat": "%CountryShort% %HostName%.opengw.net"
+  /*VPNGate Hostname(Server) Format for VPNCmd AccountCreate*/,
+  "VPNServerFormat": "%IP%/tcp:%TcpPort%"
+  /*Check ping VPNGate server before add new*/,
+  "VPNServerPing": true
+  /*Hide VPNGate account statuses on connect/retries*/,
+  "VPNHideStatus": true
+  /*Skip VPNGate server if info is to old*/,
+  "VPNSkipOldDays": 0
+  /*Max attempts to connect to existings VPNGate accounts*/,
+  "MaxExistingAttempts": 5
+  /*Max attempts to connect to new VPNGate accounts*/,
+  "MaxNewServerAttempts": 100
+  /*Attempts each new server XXX step to connect to existings VPNGate accounts*/,
+  "NewServerAttemptExistingStep": 0
+  /*Connection delay timeout*/,
+  "ConnectDelay": 15
+  /*Disconnection delay timeout*/,
+  "DisconnectDelay": 3
+  /*Delete delay timeout*/,
+  "DetectDelay": 5
+  /*Countries to select VPNGate Servers in ...*/,
+  "Countries": [
+    "JP",
+    "KR",
+    "TW",
+    "DE",
+    "FR",
+    "FI"
+  ]
+  /*StdOut Log Line Format DateTime*/,
+  "LogDateTimeFormat": "dd HH:mm:ss"
 }

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -12,6 +13,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
+using static NetRouteStabilizer.Stabilizer;
 
 namespace NetRouteStabilizer
 {
@@ -41,25 +43,68 @@ namespace NetRouteStabilizer
 
     public class RotatorConfig
     {
+        [Description("StdOut Log Line Format DateTime")]
+        [JsonProperty]
         public string LogDateTimeFormat = "dd HH:mm:ss";
 
+        [Description("JSON VPNGate Servers File from /collect")]
+        [JsonProperty]
         public string VPNServersFile    { get; set; } = "vpngate_full_list.json";
+
+        [Description("VPNGate text to find servers in VPNCmd AccountList")]
+        [JsonProperty]
         public string VPNServersFind    { get; set; } = "opengw.net";
+
+        [Description("VPNGate Atapter name (VPN/VPN2/VPN3 ...)")]
+        [JsonProperty]
         public string VPNAdapterName    { get; set; } = "VPN";
+
+        [Description("VPNGate Account Format for VPNCmd AccountCreate")]
+        [JsonProperty]
         public string VPNAccountFormat  { get; set; } = "%CountryShort% %HostName%.opengw.net";
-        public string VPNServerFormat   { get; set; } = "%IP%/tcp:%TcpPort%";            
+
+        [Description("VPNGate Hostname(Server) Format for VPNCmd AccountCreate")]
+        [JsonProperty]
+        public string VPNServerFormat   { get; set; } = "%IP%/tcp:%TcpPort%";
+
+        [Description("Check ping VPNGate server before add new")]
+        [JsonProperty]
         public bool   VPNServerPing     { get; set; } = true;
+
+        [Description("Hide VPNGate account statuses on connect/retries")]
+        [JsonProperty]
         public bool   VPNHideStatus     { get; set; } = true;
+
+        [Description("Skip VPNGate server if info is to old")]
+        [JsonProperty]
         public int    VPNSkipOldDays    { get; set; } = 0;
-        
+
+        [Description("Max attempts to connect to existings VPNGate accounts")]
+        [JsonProperty]
         public int MaxExistingAttempts  { get; set; } = 5;
+
+        [Description("Max attempts to connect to new VPNGate accounts")]
+        [JsonProperty]
         public int MaxNewServerAttempts { get; set; } = 100;
+
+        [Description("Attempts each new server XXX step to connect to existings VPNGate accounts")]
+        [JsonProperty]
         public int NewServerAttemptExistingStep { get; set; } = 0;
 
+        [Description("Connection delay timeout")]
+        [JsonProperty]
         public int ConnectDelay         { get; set; } = 15;
+        
+        [Description("Disconnection delay timeout")]
+        [JsonProperty]
         public int DisconnectDelay      { get; set; } = 3;
+        
+        [Description("Delete delay timeout")]
+        [JsonProperty]
         public int DetectDelay          { get; set; } = 5;
 
+        [Description("Countries to select VPNGate Servers in ...")]
+        [JsonProperty]
         public string[] Countries       { get; set; } = new string[] { "JP", "KR", "TW", "DE", "FR", "FI" };        
         public override string ToString()
         {
@@ -77,6 +122,60 @@ namespace NetRouteStabilizer
                     result +=  (result.Length > 0 ? "\r\n" : "") + $"    {name}: `{value}`";
             };
             return result;
+        }
+
+        public void Save(string filePath, bool withComments = false)
+        {
+            if (!withComments)
+            {
+                string data = JsonConvert.SerializeObject(config, Formatting.Indented);
+                File.WriteAllText(filePath, data);
+                return;
+            };
+
+            StreamWriter writer = new StreamWriter(filePath);
+            JsonTextWriter jsonWriter = new JsonTextWriter(writer)
+            {
+                Formatting = Formatting.Indented,
+                CloseOutput = false
+            };
+
+            JsonSerializer serializer = new JsonSerializer();
+            jsonWriter.WriteStartObject();
+
+            foreach (PropertyInfo prop in GetType().GetProperties())
+            {
+                if (prop.GetCustomAttribute<JsonPropertyAttribute>() == null) continue;
+                if (!prop.CanRead) continue;
+                writer.Write("\r\n  ");
+                WriteMemberWithComment(jsonWriter, serializer, prop, prop.GetValue(this), prop.Name);
+            }
+
+            foreach (var field in GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                writer.Write("\r\n  ");
+                if (field.GetCustomAttribute<JsonPropertyAttribute>() == null) continue;
+                WriteMemberWithComment(jsonWriter, serializer, field, field.GetValue(this), field.Name);
+            }
+
+            jsonWriter.WriteEndObject();
+            jsonWriter.Close();
+            writer.Close();
+        }
+
+        private void WriteMemberWithComment(
+            JsonTextWriter jsonWriter,
+            JsonSerializer serializer,
+            MemberInfo member,
+            object value,
+            string memberName)
+        {
+            var description = member.GetCustomAttribute<DescriptionAttribute>()?.Description;
+            if (!string.IsNullOrEmpty(description)) jsonWriter.WriteComment(description);
+            var jsonProp = member.GetCustomAttribute<JsonPropertyAttribute>();
+            string propName = jsonProp?.PropertyName ?? memberName;
+            jsonWriter.WritePropertyName(propName);
+            serializer.Serialize(jsonWriter, value);
         }
     }
 
@@ -101,11 +200,20 @@ namespace NetRouteStabilizer
         {
             string pf = Environment.GetEnvironmentVariable("ProgramW6432") ?? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             VpnCmdPath = Path.Combine(pf, "SoftEther VPN Client", "vpncmd.exe");
-            try {
-                config = JsonConvert.DeserializeObject<RotatorConfig>(File.ReadAllText(Path.Combine(GetCD(), "NetRouteRotatorConfig.json")));
-            } catch {
-                string data = JsonConvert.SerializeObject(config);
-                File.WriteAllText(Path.Combine(GetCD(), "NetRouteRotatorConfig.json"), data);
+            try
+            {
+                string fn = Path.Combine(GetCD(), "NetRouteRotatorConfig.json");
+                if (!File.Exists(fn)) throw new FileNotFoundException();
+                config = JsonConvert.DeserializeObject<RotatorConfig>(File.ReadAllText(fn));
+                if (config == null)
+                {
+                    config = new RotatorConfig();
+                    throw new Exception();
+                };
+            }
+            catch
+            {
+                config.Save(Path.Combine(GetCD(), "NetRouteRotatorConfig.json"), true);
             };
         }               
 

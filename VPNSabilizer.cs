@@ -1,6 +1,8 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -17,21 +19,46 @@ namespace NetRouteStabilizer
     {
         public class StabilizerConfig
         {
+            [Description("StdOut Log Line Format DateTime")]
+            [JsonProperty]
             public string LogDateTimeFormat { get; set; } = "dd HH:mm:ss";
 
+            [Description("VPNGate Gateway Default Address")]
+            [JsonProperty]
             public string VPNGateway { get; set; } = "10.211.254.254";
+           
+            [Description("VPNGate Gateway Default Interface Normal Metric Value")]
+            [JsonProperty]
             public long VPNGateNormalMetric { get; set; } = 1111;
+
+            [Description("VPNGate Gateway Default Interface Trigger Metric for Logics")]
+            [JsonProperty]
             public long VPNGateTriggerMetric { get; set; } = 999;
 
+            [Description("Ethernet/WiFi Gateway Default Address")]
+            [JsonProperty]
             public string NormalGateway { get; set; } = "192.168.177.254";
+
+            [Description("Ethernet/WiFi Gateway Default Interface Normal Metric Value")]
+            [JsonProperty]
             public long NormalMetric { get; set; } = 35;
 
+            [Description("IP Addresses to route through VPNGate (Mask 255.255.255.255)")]
+            [JsonProperty]
             public List<string> Proxies { get; set; } = new List<string>() { 
                 "161.115.230.27",
                 "85.195.81.161" };
+
+            [Description("Metric for IP Addresses to route through VPNGate (Mask 255.255.255.255)")]
+            [JsonProperty]
             public long ProxiesMetric { get; set; } = 20;
+            
+            [Description("Keep IP Addresses to route through VPNGate (Mask 255.255.255.255) after restart")]
+            [JsonProperty]
             public bool ProxiesKeepRestart { get; set; } = false;
 
+            [Description("IP Addresses to route through VPNGate (with Mask 0.0.0.0/0.0.0.0)")]
+            [JsonProperty]
             public List<string> Telegram { get; set; } = new List<string>() { 
                 "149.154.160.0/255.255.240.0",
                 "149.154.176.0/255.255.240.0",
@@ -43,15 +70,37 @@ namespace NetRouteStabilizer
                 "5.28.16.0/255.255.248.0",
                 "5.28.24.0/255.255.248.0",
                 "109.239.140.0/255.255.255.0" };
+
+            [Description("Metric for IP Addresses to route through VPNGate (with Mask 0.0.0.0/0.0.0.0)")]
+            [JsonProperty]
             public long TelegramMetric { get; set; } = 20;
+
+            [Description("Keep IP Addresses to route through VPNGate (with Mask 0.0.0.0/0.0.0.0) after restart")]
+            [JsonProperty]
             public bool TelegramKeepRestart { get; set; } = false;
 
+            [Description("Rotate 3Proxy.cfg file on /Stabilize with VPNGate local IP address")]
+            [JsonProperty]
             public bool Rotate3Proxy { get; set; } = true;
-            public bool Rotate3ProxyRestart { get; set; } = true;
-            public string Rotate3ProxyFileName { get; set; } = "\\3proxy-0.9.5-x64-dkxce\\bin64\\3proxy.cfg";
-            public string Rotate3ProxyRegex { get; set; } = "external 10\\.211\\.\\d{1,3}.\\d{1,3}";
-            public string Rotate3ProxyRegexInline { get; set; } = "\\s-e10\\.211\\.\\d{1,3}.\\d{1,3}";
 
+            [Description("Restart 3Proxy file on Rotate")]
+            [JsonProperty]
+            public bool Rotate3ProxyRestart { get; set; } = true;
+
+            [Description("3Proxy 3Proxy.cfg file name")]
+            [JsonProperty]
+            public string Rotate3ProxyFileName { get; set; } = "\\3proxy-0.9.5-x64-dkxce\\bin64\\3proxy.cfg";
+
+            [Description("Regex to replace external ip in 3Proxy.cfg (external 0.0.0.0)")]
+            [JsonProperty]
+            public string Rotate3ProxyRegex { get; set; } = "external 10\\.211\\.\\d{1,3}.\\d{1,3}";
+           
+            [Description("Regex to replace -e ip in 3Proxy.cfg (socks -e0.0.0.0)")]
+            [JsonProperty]
+            public string Rotate3ProxyRegexInline { get; set; } = "\\s-e10\\.211\\.\\d{1,3}.\\d{1,3}";
+            
+            [Description("Commmands after restart 3Proxy")]
+            [JsonProperty]
             public List<string> Rotate3ProxyAfterAllCommands { get; set; } = new List<string>();
 
             public override string ToString()
@@ -72,6 +121,60 @@ namespace NetRouteStabilizer
                         result += (result.Length > 0 ? "\r\n" : "") + $"    {name}: `{value}`";
                 };
                 return result;
+            }
+
+            public void Save(string filePath, bool withComments = false)
+            {
+                if (!withComments)
+                {
+                    string data = JsonConvert.SerializeObject(config, Formatting.Indented);
+                    File.WriteAllText(filePath, data);
+                    return;
+                };
+
+                StreamWriter writer = new StreamWriter(filePath);
+                JsonTextWriter jsonWriter = new JsonTextWriter(writer)
+                {
+                    Formatting = Formatting.Indented,
+                    CloseOutput = false
+                };
+
+                JsonSerializer serializer = new JsonSerializer();
+                jsonWriter.WriteStartObject();
+
+                foreach (PropertyInfo prop in GetType().GetProperties())
+                {
+                    if (prop.GetCustomAttribute<JsonPropertyAttribute>() == null) continue;
+                    if (!prop.CanRead) continue;
+                    writer.Write("\r\n  ");
+                    WriteMemberWithComment(jsonWriter, serializer, prop, prop.GetValue(this), prop.Name);
+                }
+
+                foreach (var field in GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    writer.Write("\r\n  ");
+                    if (field.GetCustomAttribute<JsonPropertyAttribute>() == null) continue;
+                    WriteMemberWithComment(jsonWriter, serializer, field, field.GetValue(this), field.Name);
+                }
+
+                jsonWriter.WriteEndObject();
+                jsonWriter.Close();
+                writer.Close();
+            }
+
+            private void WriteMemberWithComment(
+                JsonTextWriter jsonWriter,
+                JsonSerializer serializer,
+                MemberInfo member,
+                object value,
+                string memberName)
+            {
+                var description = member.GetCustomAttribute<DescriptionAttribute>()?.Description;
+                if (!string.IsNullOrEmpty(description)) jsonWriter.WriteComment(description);
+                var jsonProp = member.GetCustomAttribute<JsonPropertyAttribute>();
+                string propName = jsonProp?.PropertyName ?? memberName;
+                jsonWriter.WritePropertyName(propName);
+                serializer.Serialize(jsonWriter, value);
             }
         }
 
@@ -95,12 +198,18 @@ namespace NetRouteStabilizer
         {
             try
             {
-                config = JsonConvert.DeserializeObject<StabilizerConfig>(File.ReadAllText(Path.Combine(GetCD(), "NetRouteStabilizer.json")));
+                string fn = Path.Combine(GetCD(), "NetRouteStabilizer.json");
+                if(!File.Exists(fn)) throw new FileNotFoundException();
+                config = JsonConvert.DeserializeObject<StabilizerConfig>(File.ReadAllText(fn));
+                if (config == null)
+                {
+                    config = new StabilizerConfig();
+                    throw new Exception();
+                };
             }
             catch
             {
-                string data = JsonConvert.SerializeObject(config);
-                File.WriteAllText(Path.Combine(GetCD(), "NetRouteStabilizer.json"), data);
+                config.Save(Path.Combine(GetCD(), "NetRouteStabilizer.json"), true);
             };
         }
 
