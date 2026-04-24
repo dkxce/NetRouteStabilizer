@@ -9,6 +9,7 @@ using System.Threading;
 using System.Net.Sockets;
 using NetRouteStabilizer;
 using System.Linq;
+using System.Collections.Generic;
 
 internal class Program
 {
@@ -41,6 +42,8 @@ internal class Program
             if (string.Equals(args[i], "/deletenw", StringComparison.OrdinalIgnoreCase))      { cnt++; Stabilizer.Deletize(args, false); };
             if (string.Equals(args[i], "/3proxy", StringComparison.OrdinalIgnoreCase))        { cnt++; Stabilizer.Rotate3Proxy(args, false); };
             if (string.Equals(args[i], "/collect", StringComparison.OrdinalIgnoreCase))       { cnt++; VpnGateCollector.Collect(args); };
+            if (string.Equals(args[i], "/manual", StringComparison.OrdinalIgnoreCase))        { cnt++; Manual(false); };
+            if (string.Equals(args[i], "/listed", StringComparison.OrdinalIgnoreCase))        { cnt++; LinedHelp(false); };
         };
         if (cnt > 0) return;
         Help();
@@ -142,6 +145,8 @@ internal class Program
         Console.WriteLine("---                       Input  FileName: vpnroutes_vpngate.txt       ---");
         Console.WriteLine("---                       Output FileName: vpnroutes_vpngate_nocfg.csv ---");
         Console.WriteLine("---                                                                    ---");
+        Console.WriteLine("---       /manual       - Show Manual Menu                             ---");
+        Console.WriteLine("---       /listed       - Show Listed Menu                             ---");
         Console.WriteLine("==========================================================================");
         Console.WriteLine("---  SAMPLE (Direct New ServersRotate):                                ---");
         Console.WriteLine("---     /rotate /force /MaxExistingAttempts=0 /VPNServerPing=false     ---");
@@ -167,9 +172,16 @@ internal class Program
         };
     }
 
-    private static void Manual()
-    {        
+    private static void Manual(bool fromCode = true)
+    {
         Console.Clear();
+        if (!fromCode)
+        {
+            Console.WriteLine("==========================================================================");
+            Console.WriteLine("===     https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026     ===");
+            Console.WriteLine("==========================================================================");
+        };
+        
         Console.WriteLine("╔════════════════════════════════════════════════════════╗");
         Console.WriteLine("║                    - Manual Mode -                     ║");
         Console.WriteLine("╚════════════════════════════════════════════════════════╝");
@@ -191,10 +203,10 @@ internal class Program
         Console.WriteLine("  [B] /shrinkvpnjson - Shrink VPNGate JSON (no base64cfg)");
         Console.WriteLine("  [C] /stripcsv      - Shrink VPNGate CSV (no base64cfg)");
         Console.WriteLine("  [D] /detectip      - Detect IP of VPNGate Adapter");
-        Console.WriteLine("──────────────----──────────────────────────────────────--");
+        Console.WriteLine("──────────────-───────────────────────────────────────────");
         Console.WriteLine("  [0] Exit Manual Mode    [H] Show Help Details");
-        Console.WriteLine("──────────────----──────────────────────────────────────--");
-        Console.Write("\r\nSelect option (0-9, A-D, H): ");
+        Console.WriteLine("──────────────-───────────────────────────────────────────");
+        Console.Write("\r\nSelect option (0-9,A-D,H) or Press Enter to Listed menu: ");
         while (true)
         {
             ConsoleKeyInfo key = Console.ReadKey();
@@ -212,12 +224,12 @@ internal class Program
                     return;
                 case '4': VpnGateCollector.Collect(new string[0]); return;
                 case '5': Stabilizer.Stabilize(new string[0]); return;
-                case '6': Stabilizer.Normalize(new string[0], true); return;
-                case '7': Stabilizer.Proximize(new string[0], true); return;
-                case '8': Stabilizer.Direct(new string[0], true); return;
-                case '9': Stabilizer.Deletize(new string[0], true); return;
+                case '6': Stabilizer.Normalize(new string[0], false); return;
+                case '7': Stabilizer.Proximize(new string[0], false); return;
+                case '8': Stabilizer.Direct(new string[0], false); return;
+                case '9': Stabilizer.Deletize(new string[0], false); return;
                 case 'a':
-                case 'A': Stabilizer.Rotate3Proxy(new string[0], true); return;
+                case 'A': Stabilizer.Rotate3Proxy(new string[0], false); return;
                 case 'b':
                 case 'B': VPNGateRotator.ShrinkJSON(new string[0]); return;
                 case 'c':
@@ -228,11 +240,51 @@ internal class Program
                 case 'H': Console.Clear(); Help(); return;
                 case '0': return;
 
-                default: Console.Write("Invalid Option. Select (0-9, A-D, H): "); continue;
+                case '\r':
+                case '\n': LinedHelp(); return;
+
+                default: Console.Write("Invalid Option. Select (0-9,A-D,H) or Press Enter to Listed menu: "); continue;
             };            
         };
     }
-    
+
+    public static void LinedHelp(bool fromCode = true)
+    {
+        Console.Clear();
+        if (!fromCode)
+        {
+            Console.WriteLine("==========================================================================");
+            Console.WriteLine("===     https://github.com/dkxce/NetRouteStabilizer (C) dkxce 2026     ===");
+            Console.WriteLine("==========================================================================");
+        };
+        
+        List<KeyValuePair<string, Action>> m = new List<KeyValuePair<string, Action>>();
+        m.Add(new KeyValuePair<string, Action>("--MONITORING:", null));
+        m.Add(new KeyValuePair<string, Action>("/smonitor  - Start Monitoring IP Route Table (cmd)", () => { Console.Clear(); ScriptMonitor(new string[0]); return; }));
+        m.Add(new KeyValuePair<string, Action>("/cmonitor  - Start Monitoring IP Route Table (exe)", () => { Console.Clear(); CodeMonitor(new string[0]); return; }));
+        m.Add(new KeyValuePair<string, Action>("--VPN GATE ROTATION:", null));
+        m.Add(new KeyValuePair<string, Action>("/rotate    - Automatic Rotate VPNGate Servers", () => { Console.Clear(); VPNGateRotator.ProcessRotate(new string[0]); return; }));
+        m.Add(new KeyValuePair<string, Action>("/rotate /force - Force Rotate VPNGate Servers", () => { Console.Clear(); VPNGateRotator.ProcessRotate(new string[] { "/force" }); return; }));
+        m.Add(new KeyValuePair<string, Action>("/collect   - Collect VPNGate Servers", () => { Console.Clear(); VpnGateCollector.Collect(new string[0]); return; }));
+        m.Add(new KeyValuePair<string, Action>("--STABILIZATION:", null));
+        m.Add(new KeyValuePair<string, Action>("/stabilize - Stabilize VPN Gate Connection", () => { Console.Clear(); Stabilizer.Stabilize(new string[0]); return; }));
+        m.Add(new KeyValuePair<string, Action>("/normalize - Set Normal Direct/VPNGate Network", () => { Console.Clear(); Stabilizer.Normalize(new string[0], false); return; }));
+        m.Add(new KeyValuePair<string, Action>("/proximize - Set Normal Proxy Network", () => { Console.Clear(); Stabilizer.Proximize(new string[0], false); return; }));
+        m.Add(new KeyValuePair<string, Action>("/direct    - Set Direct Network Connection", () => { Console.Clear(); Stabilizer.Direct(new string[0], false); return; }));
+        m.Add(new KeyValuePair<string, Action>("/deletenw  - Delete Proxy Network", () => { Console.Clear(); Stabilizer.Deletize(new string[0], false); return; }));
+        m.Add(new KeyValuePair<string, Action>("/3proxy    - Restart 3proxy on VPNGate IP", () => { Console.Clear(); Stabilizer.Rotate3Proxy(new string[0], false); return; }));
+        m.Add(new KeyValuePair<string, Action>("--TOOLS:", null));
+        m.Add(new KeyValuePair<string, Action>("/shrinkvpnjson - Shrink VPNGate JSON (no base64cfg)", () => { Console.Clear(); VPNGateRotator.ShrinkJSON(new string[0]); return; }));
+        m.Add(new KeyValuePair<string, Action>("/stripcsv      - Shrink VPNGate CSV (no base64cfg)", () => { Console.Clear(); ParseVPNGateCSV(); return; }));
+        m.Add(new KeyValuePair<string, Action>("/detectip      - Detect IP of VPNGate Adapter", () => { GetIpAddressesByPrefix("10.211."); return; }));
+        m.Add(new KeyValuePair<string, Action>("--", null));
+        m.Add(new KeyValuePair<string, Action>("Show Help Details", () => { Console.Clear(); Help(); return; }));
+        m.Add(new KeyValuePair<string, Action>("Exit", () => { Console.Clear(); return; }));
+        ConsoleMenu menu = new ConsoleMenu(m, title: "Manual Mode (Listed)");
+        menu.Show(out _, out _);
+    }
+
+
 
     private static void GetRouteTableChanges()
     {
