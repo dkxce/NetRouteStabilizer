@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Net.Sockets;
 using NetRouteStabilizer;
+using System.Linq;
 
 internal class Program
 {
@@ -24,22 +25,24 @@ internal class Program
 
     static void Main(string[] args)
     {
+        int cnt = 0;
         for (int i = 0; i < args.Length; i++)
         {
-            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ProcessRotate(args); return; };
-            if (string.Equals(args[i], "/smonitor", StringComparison.OrdinalIgnoreCase)) { ScriptMonitor(args); return; };
-            if (string.Equals(args[i], "/cmonitor", StringComparison.OrdinalIgnoreCase)) { CodeMonitor(args); return; };
-            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase)) { GetIpAddressesByPrefix("10.211."); return; };
-            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase)) { ParseVPNGateCSV(); return; };            
-            if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { VPNGateRotator.ShrinkJSON(args); return; };
-            if (string.Equals(args[i], "/stabilize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Stabilize(args); return; };
-            if (string.Equals(args[i], "/direct", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Direct(args, false); return; };
-            if (string.Equals(args[i], "/normalize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Normalize(args, false); return; };
-            if (string.Equals(args[i], "/proximize", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Proximize(args, false); return; };
-            if (string.Equals(args[i], "/deletenw", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Deletize(args, false); return; };
-            if (string.Equals(args[i], "/3proxy", StringComparison.OrdinalIgnoreCase)) { Stabilizer.Rotate3Proxy(args, false); return; };
-            if (string.Equals(args[i], "/collect", StringComparison.OrdinalIgnoreCase)) { VpnGateCollector.Collect(args); return; };
+            if (string.Equals(args[i], "/rotate", StringComparison.OrdinalIgnoreCase))        { cnt++; VPNGateRotator.ProcessRotate(args); };
+            if (string.Equals(args[i], "/smonitor", StringComparison.OrdinalIgnoreCase))      { cnt++; ScriptMonitor(args); };
+            if (string.Equals(args[i], "/cmonitor", StringComparison.OrdinalIgnoreCase))      { cnt++; CodeMonitor(args); };
+            if (string.Equals(args[i], "/detectip", StringComparison.OrdinalIgnoreCase))      { cnt++; GetIpAddressesByPrefix("10.211."); };
+            if (string.Equals(args[i], "/stripcsv", StringComparison.OrdinalIgnoreCase))      { cnt++; ParseVPNGateCSV(); };
+            if (string.Equals(args[i], "/shrinkvpnjson", StringComparison.OrdinalIgnoreCase)) { cnt++; VPNGateRotator.ShrinkJSON(args); };
+            if (string.Equals(args[i], "/stabilize", StringComparison.OrdinalIgnoreCase))     { cnt++; Stabilizer.Stabilize(args); };
+            if (string.Equals(args[i], "/direct", StringComparison.OrdinalIgnoreCase))        { cnt++; Stabilizer.Direct(args, false); };
+            if (string.Equals(args[i], "/normalize", StringComparison.OrdinalIgnoreCase))     { cnt++; Stabilizer.Normalize(args, false); };
+            if (string.Equals(args[i], "/proximize", StringComparison.OrdinalIgnoreCase))     { cnt++; Stabilizer.Proximize(args, false); };
+            if (string.Equals(args[i], "/deletenw", StringComparison.OrdinalIgnoreCase))      { cnt++; Stabilizer.Deletize(args, false); };
+            if (string.Equals(args[i], "/3proxy", StringComparison.OrdinalIgnoreCase))        { cnt++; Stabilizer.Rotate3Proxy(args, false); };
+            if (string.Equals(args[i], "/collect", StringComparison.OrdinalIgnoreCase))       { cnt++; VpnGateCollector.Collect(args); };
         };
+        if (cnt > 0) return;
         Help();
     }
 
@@ -143,8 +146,93 @@ internal class Program
         Console.WriteLine("---  SAMPLE (Direct New ServersRotate):                                ---");
         Console.WriteLine("---     /rotate /force /MaxExistingAttempts=0 /VPNServerPing=false     ---");
         Console.WriteLine("==========================================================================");
-        System.Threading.Thread.Sleep(3000);
+        
+        int step = 8, top = Console.CursorTop;
+        Stopwatch sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < 8000)
+        {
+            if (Console.KeyAvailable)
+            {
+                Console.ReadKey();
+                sw.Stop();
+                Manual();
+                return;
+            }
+            else
+            {
+                Console.CursorTop = top;
+                Console.WriteLine($"Press any key to manual select ({step--}s) ...");
+            };
+            Thread.Sleep(1000);
+        };
     }
+
+    private static void Manual()
+    {        
+        Console.Clear();
+        Console.WriteLine("╔════════════════════════════════════════════════════════╗");
+        Console.WriteLine("║                    - Manual Mode -                     ║");
+        Console.WriteLine("╚════════════════════════════════════════════════════════╝");
+        Console.WriteLine();
+        Console.WriteLine("MONITORING:");
+        Console.WriteLine("  [1] /smonitor  - Start Monitoring IP Route Table (cmd)");
+        Console.WriteLine("  [2] /cmonitor  - Start Monitoring IP Route Table (exe)");
+        Console.WriteLine("VPN GATE ROTATION:");
+        Console.WriteLine("  [3] /rotate    - Automatic Rotate VPNGate Servers [/force]");
+        Console.WriteLine("  [4] /collect   - Collect VPNGate Servers");
+        Console.WriteLine("STABILIZATION:");
+        Console.WriteLine("  [5] /stabilize - Stabilize VPN Gate Connection");
+        Console.WriteLine("  [6] /normalize - Set Normal Direct/VPNGate Network");
+        Console.WriteLine("  [7] /proximize - Set Normal Proxy Network");
+        Console.WriteLine("  [8] /direct    - Set Direct Network Connection");
+        Console.WriteLine("  [9] /deletenw  - Delete Proxy Network");
+        Console.WriteLine("  [A] /3proxy    - Restart 3proxy on VPNGate IP");
+        Console.WriteLine("TOOLS:");
+        Console.WriteLine("  [B] /shrinkvpnjson - Shrink VPNGate JSON (no base64cfg)");
+        Console.WriteLine("  [C] /stripcsv      - Shrink VPNGate CSV (no base64cfg)");
+        Console.WriteLine("  [D] /detectip      - Detect IP of VPNGate Adapter");
+        Console.WriteLine("──────────────----──────────────────────────────────────--");
+        Console.WriteLine("  [0] Exit Manual Mode    [H] Show Help Details");
+        Console.WriteLine("──────────────----──────────────────────────────────────--");
+        Console.Write("\r\nSelect option (0-9, A-D, H): ");
+        while (true)
+        {
+            ConsoleKeyInfo key = Console.ReadKey();
+            Console.WriteLine();
+
+            switch (char.ToUpperInvariant(key.KeyChar))
+            {
+                case '1': ScriptMonitor(new string[0]); return;
+                case '2': CodeMonitor(new string[0]); return;
+                case '3':
+                    Console.Write("  Add /force parameter? (y/n): ");
+                    ConsoleKeyInfo force = Console.ReadKey();
+                    Console.WriteLine(force.KeyChar);
+                    VPNGateRotator.ProcessRotate(char.ToUpperInvariant(force.KeyChar) == 'Y' ? new string[] { "/force" } : new string[0]);
+                    return;
+                case '4': VpnGateCollector.Collect(new string[0]); return;
+                case '5': Stabilizer.Stabilize(new string[0]); return;
+                case '6': Stabilizer.Normalize(new string[0], true); return;
+                case '7': Stabilizer.Proximize(new string[0], true); return;
+                case '8': Stabilizer.Direct(new string[0], true); return;
+                case '9': Stabilizer.Deletize(new string[0], true); return;
+                case 'a':
+                case 'A': Stabilizer.Rotate3Proxy(new string[0], true); return;
+                case 'b':
+                case 'B': VPNGateRotator.ShrinkJSON(new string[0]); return;
+                case 'c':
+                case 'C': ParseVPNGateCSV(); return;
+                case 'd':
+                case 'D': GetIpAddressesByPrefix("10.211."); return;
+                case 'h':
+                case 'H': Console.Clear(); Help(); return;
+                case '0': return;
+
+                default: Console.Write("Invalid Option. Select (0-9, A-D, H): "); continue;
+            };            
+        };
+    }
+    
 
     private static void GetRouteTableChanges()
     {
