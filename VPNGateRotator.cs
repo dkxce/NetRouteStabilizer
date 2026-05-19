@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Configuration;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -105,7 +106,11 @@ namespace NetRouteStabilizer
 
         [Description("Countries to select VPNGate Servers in ...")]
         [JsonProperty]
-        public string[] Countries       { get; set; } = new string[] { "JP", "KR", "TW", "DE", "FR", "FI" };        
+        public string[] Countries       { get; set; } = new string[] { "JP", "KR", "TW", "DE", "FR", "FI" };
+
+        [Description("Ethernet Port In Range ...")]
+        [JsonProperty]
+        public string Ports { get; set; } = "0-65535";
         public override string ToString()
         {
             string result = "";
@@ -319,6 +324,7 @@ namespace NetRouteStabilizer
                         if (srv.TCP == false) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "No TCP"; }; ;
                         if ((!long.TryParse(srv.Uptime, out long uptime)) || uptime <= 1000) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad UpTime"; };
                         if (!config.Countries.Contains(srv.CountryShort)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Bad Country"; };
+                        if(!TcpPortIsIn(srv.TcpPort, config.Ports)) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Invalid Port"; };
                         if (srv.Operator.Contains("Academic Use Only")) { skip = true; skipReason += (skipReason == "" ? "" : "/") + "Academic Use Only"; };
                         if (config.VPNSkipOldDays > 0 && age > config.VPNSkipOldDays) { skip = true; skipReason += (skipReason == "" ? "" : "/") + $"Old {age:F1}d"; };
                         if (skip)
@@ -352,6 +358,40 @@ namespace NetRouteStabilizer
                 Log("ALL CONNECTION ATTEMPTS FAILED, TRY AGAIN LATER", "", ConsoleColor.Red, ConsoleColor.White);
                 return Environment.ExitCode = EXIT_ALL_FAILED;
             };
+        }
+
+        private static bool TcpPortIsIn(int port, string range)
+        {
+            if (port < 0 || port > 65535) return false;
+            if (string.IsNullOrEmpty(range)) return true;
+            if (string.IsNullOrWhiteSpace(range)) return true;
+
+            string[] parts = range.Split(',');
+            foreach (string part in parts)
+            {
+                string trimmed = part.Trim();
+                if (trimmed.Length == 0) continue;
+
+                string[] bounds = range.Split('-');
+                if (bounds.Length > 2) return false;
+
+                int min, max;
+                if (bounds.Length == 1)
+                {
+                    if (!int.TryParse(bounds[0].Trim(), out min)) return false;
+                    max = min;
+                }
+                else
+                {
+                    if (!int.TryParse(bounds[0].Trim(), out min) ||
+                        !int.TryParse(bounds[1].Trim(), out max)) return false;
+                };
+
+                if (min < 0 || max > 65535 || min > max) return false;
+                if (port >= min && port <= max) return true;
+            };
+
+            return false;
         }
 
         private static string GetAccountNewName(string accountName, int increment)
