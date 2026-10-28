@@ -4,7 +4,7 @@
 
 ```
 Format:
-  (подключечния) > vpncmd localhost /client /cmd:AccountList
+  (подключения) > vpncmd localhost /client /cmd:AccountList
   (создание)> vpncmd localhost /client /cmd:AccountCreate "%AccountName%" /SERVER:"%IP%/tcp:%TcpPort%" /HUB:"VPNGate" /USERNAME:"vpn" /NICNAME:"%Adapter%"
   (обновить, не надо)> vpncmd localhost /client /cmd:AccountSet "%AccountName%" /SERVER:"%IP%/tcp:%TcpPort%" /HUB:"VPNGate" /USERNAME:"vpn" /NICNAME:"%Adapter%"  
   (пароль, не надо)> vpncmd localhost /client /CMD:AccountPasswordSet "%AccountName%" /PASSWORD:"%Password%" /TYPE:%standard|radius|ntdomain%
@@ -24,7 +24,7 @@ Remoting:
   > vpncmd localhost /client /CMD:RemoteDisable
 ```
 
-#### Template
+#### VPNGate Template
 
 - **Setting Name**: vpn284820218.opengw.net
 - **Host Name**: 126.89.248.12/tcp
@@ -36,7 +36,7 @@ Remoting:
 - [X] **No Adjustments of Routing Table (Advanced)** - (optional)
 
 
-#### Custom Settings
+#### VPNGate Custom Settings
 - **Interface Metrics**: 1111
 - **Default Gateway**: 10.211.254.254
 - **Local IP Address**: any of 10.211.*.*
